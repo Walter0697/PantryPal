@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { FaUser, FaLock, FaUtensils } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { authenticate } from './actions';
@@ -9,8 +9,18 @@ import { useAuth } from '../components/AuthProvider';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [returnUrl, setReturnUrl] = useState('/home');
+
+  // Get the return URL from the query parameters if available
+  useEffect(() => {
+    const urlReturnPath = searchParams.get('returnUrl');
+    if (urlReturnPath) {
+      setReturnUrl(urlReturnPath);
+    }
+  }, [searchParams]);
 
   async function handleSubmit(formData: FormData) {
     setIsLoading(true);
@@ -21,9 +31,14 @@ export default function LoginPage() {
       
       if (result.success) {
         toast.success(result.message);
-        // Set login state and redirect to home page
-        login();
-        router.push('/home');
+        // Store the JWT token and set login state
+        if (result.token && result.expiresIn) {
+          login(result.token, result.expiresIn);
+          // Redirect to the return URL or home page
+          router.push(returnUrl || '/home');
+        } else {
+          toast.error('Authentication failed: Missing token information');
+        }
       } else {
         // Show error toast on failed login
         toast.error(result.message);
