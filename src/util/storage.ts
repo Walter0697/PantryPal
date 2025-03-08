@@ -4,6 +4,7 @@ import { Layout } from 'react-grid-layout';
 export interface AreaItem {
   id: string;
   name: string;
+  identifier: string;
   iconName: string;
   color: string;
 }
@@ -16,12 +17,12 @@ const AREAS_STORAGE_KEY = 'gridAreas';
 
 // Default values
 const defaultAreas: AreaItem[] = [
-  { id: 'kitchen', name: 'Kitchen', iconName: 'FaKitchenSet', color: 'bg-blue-500' },
-  { id: 'bathroom', name: 'Bathroom', iconName: 'FaToilet', color: 'bg-green-500' },
-  { id: 'bedroom', name: 'Bedroom', iconName: 'FaBed', color: 'bg-purple-500' },
-  { id: 'living-room', name: 'Living Room', iconName: 'FaCouch', color: 'bg-yellow-500' },
-  { id: 'dining', name: 'Dining', iconName: 'FaUtensils', color: 'bg-red-500' },
-  { id: 'shower', name: 'Shower', iconName: 'FaShower', color: 'bg-indigo-500' },
+  { id: 'kitchen', name: 'Kitchen', identifier: 'KITCHEN-001', iconName: 'FaKitchenSet', color: 'bg-blue-500' },
+  { id: 'bathroom', name: 'Bathroom', identifier: 'BATH-001', iconName: 'FaToilet', color: 'bg-green-500' },
+  { id: 'bedroom', name: 'Bedroom', identifier: 'BED-001', iconName: 'FaBed', color: 'bg-purple-500' },
+  { id: 'living-room', name: 'Living Room', identifier: 'LIVING-001', iconName: 'FaCouch', color: 'bg-yellow-500' },
+  { id: 'dining', name: 'Dining', identifier: 'DINING-001', iconName: 'FaUtensils', color: 'bg-red-500' },
+  { id: 'shower', name: 'Shower', identifier: 'SHOWER-001', iconName: 'FaShower', color: 'bg-indigo-500' },
 ];
 
 const defaultLayouts = {
@@ -54,8 +55,21 @@ const defaultLayouts = {
 // Helper to check if we're in a browser environment
 const isBrowser = () => typeof window !== 'undefined';
 
+// Helper to ensure all areas have identifiers
+const migrateAreasWithIdentifiers = (areas: AreaItem[]): AreaItem[] => {
+  return areas.map((area, index) => {
+    if (!area.identifier) {
+      // Create a default identifier based on the name or ID
+      const baseIdentifier = area.name.toUpperCase().replace(/\s+/g, '-');
+      const uniqueIdentifier = `${baseIdentifier}-${index + 1}`.substring(0, 15);
+      return { ...area, identifier: uniqueIdentifier };
+    }
+    return area;
+  });
+};
+
 /**
- * Get all boxes/areas from localStorage
+ * Get all areas/boxes
  */
 export const getAreas = (): AreaItem[] => {
   if (!isBrowser()) return defaultAreas;
@@ -64,17 +78,16 @@ export const getAreas = (): AreaItem[] => {
   if (!savedAreas) return defaultAreas;
   
   try {
-    const areas = JSON.parse(savedAreas);
+    const parsedAreas = JSON.parse(savedAreas);
+    // Apply migration to ensure all areas have identifiers
+    const migratedAreas = migrateAreasWithIdentifiers(parsedAreas);
     
-    // Handle old format (icon vs iconName)
-    if (areas.length > 0 && areas[0].icon && !areas[0].iconName) {
-      // Migration needed
-      console.log('Migrating old format grid data to new format...');
-      localStorage.removeItem(AREAS_STORAGE_KEY);
-      return defaultAreas;
+    // If we had to add identifiers, save the updated areas
+    if (JSON.stringify(parsedAreas) !== JSON.stringify(migratedAreas)) {
+      saveAreas(migratedAreas);
     }
     
-    return areas;
+    return migratedAreas;
   } catch (error) {
     console.error('Error parsing areas from localStorage:', error);
     return defaultAreas;
@@ -118,10 +131,19 @@ export const saveLayouts = (layouts: LayoutConfig): void => {
  * Check if area name already exists (case insensitive)
  */
 export const isAreaNameDuplicate = (name: string, excludeId?: string): boolean => {
+  // Names can be duplicated now, so always return false
+  return false;
+};
+
+/**
+ * Check if an identifier is already in use by another area
+ */
+export const isAreaIdentifierDuplicate = (identifier: string, excludeId?: string): boolean => {
   const areas = getAreas();
   return areas.some(area => 
     area.id !== excludeId && 
-    area.name.toLowerCase() === name.toLowerCase()
+    area.identifier && identifier &&
+    area.identifier.toLowerCase() === identifier.toLowerCase()
   );
 };
 

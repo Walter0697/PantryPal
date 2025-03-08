@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FaEdit, FaTrash, FaArrowLeft, FaSave, FaTimesCircle, FaPlus } from 'react-icons/fa';
 import { IconType } from 'react-icons';
 import * as Icons from 'react-icons/fa6';
-import { AreaItem, getAreas, updateArea, removeArea, addArea, isAreaNameDuplicate } from '../../util/storage';
+import { AreaItem, getAreas, updateArea, removeArea, addArea, isAreaNameDuplicate, isAreaIdentifierDuplicate } from '../../util/storage';
 
 export default function ListPage() {
   const router = useRouter();
@@ -14,10 +14,12 @@ export default function ListPage() {
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
+  const [editIcon, setEditIcon] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newBoxName, setNewBoxName] = useState('');
   const [newBoxColor, setNewBoxColor] = useState('bg-blue-500');
   const [newBoxIcon, setNewBoxIcon] = useState('FaBox');
+  const [newBoxIdentifier, setNewBoxIdentifier] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Colors available for selection
@@ -65,6 +67,7 @@ export default function ListPage() {
     setEditingItem(item.id);
     setEditName(item.name);
     setEditColor(item.color);
+    setEditIcon(item.iconName);
   };
 
   // Cancel editing
@@ -72,6 +75,7 @@ export default function ListPage() {
     setEditingItem(null);
     setEditName('');
     setEditColor('');
+    setEditIcon('');
   };
 
   // Save edited item
@@ -82,16 +86,11 @@ export default function ListPage() {
       return;
     }
     
-    // Check for duplicate names (excluding the current box)
-    if (isAreaNameDuplicate(trimmedName, id)) {
-      alert("A box with this name already exists. Please use a different name.");
-      return;
-    }
-    
     // Update the area
-    const updatedArea = updateArea(id, { 
-      name: trimmedName, 
-      color: editColor 
+    const updatedArea = updateArea(id, {
+      name: trimmedName,
+      color: editColor,
+      iconName: editIcon
     });
     
     if (updatedArea) {
@@ -99,9 +98,13 @@ export default function ListPage() {
       const updatedAreas = getAreas();
       setAreas(updatedAreas);
       setFilteredAreas(updatedAreas);
+      
+      // Reset edit state
+      setEditingItem(null);
+      setEditName('');
+      setEditColor('');
+      setEditIcon('');
     }
-    
-    setEditingItem(null);
   };
 
   // Remove an item
@@ -124,36 +127,49 @@ export default function ListPage() {
     return (Icons as any)[iconName] || Icons.FaBox;
   };
 
-  // Open create dialog
+  // Show create dialog
   const handleCreateClick = () => {
+    setShowCreateDialog(true);
     setNewBoxName('');
     setNewBoxColor('bg-blue-500');
     setNewBoxIcon('FaBox');
-    setShowCreateDialog(true);
+    setNewBoxIdentifier('');
   };
 
   // Cancel create dialog
   const handleCancelCreate = () => {
     setShowCreateDialog(false);
+    setNewBoxName('');
+    setNewBoxColor('bg-blue-500');
+    setNewBoxIcon('FaBox');
+    setNewBoxIdentifier('');
   };
 
   // Save new box
   const handleSaveCreate = () => {
     const trimmedName = newBoxName.trim();
+    const trimmedIdentifier = newBoxIdentifier.trim();
+    
     if (!trimmedName) {
       alert("Box name cannot be empty");
       return;
     }
     
-    // Check for duplicate names
-    if (isAreaNameDuplicate(trimmedName)) {
-      alert("A box with this name already exists. Please use a different name.");
+    if (!trimmedIdentifier) {
+      alert("Identifier cannot be empty");
+      return;
+    }
+    
+    // Check for duplicate identifiers
+    if (isAreaIdentifierDuplicate(trimmedIdentifier)) {
+      alert("An item with this identifier already exists. Please use a different identifier.");
       return;
     }
     
     // Add the new area
     const newArea = addArea({
       name: trimmedName,
+      identifier: trimmedIdentifier,
       iconName: newBoxIcon,
       color: newBoxColor
     });
@@ -219,7 +235,17 @@ export default function ListPage() {
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                          className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-gray-300 mb-1">Identifier (cannot be changed)</label>
+                        <input
+                          type="text"
+                          value={item.identifier}
+                          disabled
+                          className="w-full bg-dark-blue-light bg-opacity-50 border border-primary-700 rounded-md p-2 text-gray-400 cursor-not-allowed"
                         />
                       </div>
                       
@@ -238,7 +264,27 @@ export default function ListPage() {
                         </div>
                       </div>
                       
-                      <div className="flex justify-end space-x-2">
+                      <div>
+                        <label className="block text-gray-300 mb-1">Icon</label>
+                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-40 overflow-y-auto bg-dark-blue-light bg-opacity-70 p-2 rounded-md">
+                          {popularIcons.map(iconName => {
+                            const IconComponent = getIconComponent(iconName);
+                            return (
+                              <button
+                                key={iconName}
+                                type="button"
+                                className={`p-2 rounded-md ${editIcon === iconName ? 'bg-primary-700 ring-2 ring-white' : 'bg-dark-blue hover:bg-dark-blue-light'} transition-colors cursor-pointer`}
+                                onClick={() => setEditIcon(iconName)}
+                                aria-label={`Select ${iconName} icon`}
+                              >
+                                <IconComponent className="text-white text-xl mx-auto" />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-end space-x-2 mt-4">
                         <button
                           onClick={handleCancelEdit}
                           className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md shadow-sm border border-red-800 transition-colors flex items-center cursor-pointer"
@@ -261,7 +307,10 @@ export default function ListPage() {
                         <div className={`${item.color} p-2 rounded-md mr-3`}>
                           <Icon className="text-white text-xl" />
                         </div>
-                        <span className="text-white font-medium">{item.name}</span>
+                        <div>
+                          <span className="text-white font-medium">{item.name}</span>
+                          <div className="text-gray-400 text-sm">ID: {item.identifier}</div>
+                        </div>
                       </div>
                       
                       <div className="flex space-x-2">
@@ -303,6 +352,17 @@ export default function ListPage() {
                   onChange={(e) => setNewBoxName(e.target.value)}
                   className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white"
                   placeholder="Enter a name for the box"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-300 mb-1">Identifier (must be unique)</label>
+                <input
+                  type="text"
+                  value={newBoxIdentifier}
+                  onChange={(e) => setNewBoxIdentifier(e.target.value)}
+                  className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white"
+                  placeholder="Enter unique identifier (e.g., KITCHEN-001)"
                 />
               </div>
               

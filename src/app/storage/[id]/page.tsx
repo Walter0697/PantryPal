@@ -63,6 +63,7 @@ export default function StoragePage({ params }: PageParams) {
   const id = unwrappedParams.id;
   
   const [boxName, setBoxName] = useState('');
+  const [boxIdentifier, setBoxIdentifier] = useState('');
   const [items, setItems] = useState<StorageItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<StorageItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,6 +98,7 @@ export default function StoragePage({ params }: PageParams) {
         const area = await getAreaById(id);
         if (area) {
           setBoxName(area.name);
+          setBoxIdentifier(area.identifier);
         } else {
           console.warn(`Box with ID ${id} not found`);
         }
@@ -325,7 +327,7 @@ export default function StoragePage({ params }: PageParams) {
       
       <div className="bg-dark-blue rounded-lg shadow-lg p-6 flex-grow">
         <h2 className="text-xl font-semibold text-white mb-4">{boxName || 'Unknown Box'}</h2>
-        <p className="text-gray-100 mb-6">Box Identifier: {id}</p>
+        <p className="text-gray-300 mb-6">Box Identifier: {boxIdentifier}</p>
         
         {/* Search */}
         <div className="mb-6 relative">

@@ -170,11 +170,10 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
     resetToOriginal
   }));
 
-  const handleBoxClick = (areaId: string) => {
+  const handleBoxClick = (areaId: string, identifier: string) => {
     if (!isEditMode) {
-      // Navigate to the storage page with the box ID
-      // Using a more controlled approach than direct window.location assignment
-      const storageUrl = `/storage/${areaId}`;
+      // Navigate to the storage page with the area identifier
+      const storageUrl = `/storage/${identifier}`;
       
       // This creates a cleaner navigation experience without a full page reload
       const a = document.createElement('a');
@@ -207,18 +206,24 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
 
   // Function to add a new box with a custom name
   const addNewBoxWithName = (name: string) => {
-    // Generate a unique ID
+    // Generate a unique identifier
+    const sanitizedName = name.toUpperCase().replace(/\s+/g, '-');
+    const randomId = Math.floor(Math.random() * 9000) + 1000;
+    const uniqueIdentifier = `${sanitizedName.substring(0, 10)}-${randomId}`;
+    
+    // Generate a unique ID for the layout
     const newId = `box-${Date.now()}`;
     
-    // Random icon and color
+    // Get a random icon and color
     const randomIcon = allIcons[Math.floor(Math.random() * allIcons.length)];
     const randomIconName = getIconName(randomIcon);
     const randomColor = allColors[Math.floor(Math.random() * allColors.length)];
     
-    // Create new area
-    const newArea = {
+    // Create the new area
+    const newArea: AreaItem = {
       id: newId,
       name: name,
+      identifier: uniqueIdentifier,
       iconName: randomIconName,
       color: randomColor
     };
@@ -282,7 +287,7 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
             <div 
               key={area.id} 
               className={`${area.color} rounded-lg shadow-lg p-4 flex flex-col items-center justify-center cursor-pointer transition-transform ${isEditMode ? 'cursor-move' : 'hover:scale-102'}`}
-              onClick={() => handleBoxClick(area.id)}
+              onClick={() => handleBoxClick(area.id, area.identifier)}
             >
               {isEditMode && (
                 <>

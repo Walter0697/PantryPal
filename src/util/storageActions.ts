@@ -6,18 +6,19 @@ import { revalidatePath } from 'next/cache';
 export interface AreaItem {
   id: string;
   name: string;
+  identifier: string;
   iconName: string;
   color: string;
 }
 
 // Backend in-memory storage for storage locations (will be reset on server restart)
 let storageAreas: AreaItem[] = [
-  { id: 'kitchen', name: 'Kitchen', iconName: 'FaKitchenSet', color: 'bg-blue-500' },
-  { id: 'bathroom', name: 'Bathroom', iconName: 'FaToilet', color: 'bg-green-500' },
-  { id: 'bedroom', name: 'Bedroom', iconName: 'FaBed', color: 'bg-purple-500' },
-  { id: 'living-room', name: 'Living Room', iconName: 'FaCouch', color: 'bg-yellow-500' },
-  { id: 'dining', name: 'Dining', iconName: 'FaUtensils', color: 'bg-red-500' },
-  { id: 'shower', name: 'Shower', iconName: 'FaShower', color: 'bg-indigo-500' },
+  { id: 'kitchen', name: 'Kitchen', identifier: 'KITCHEN-001', iconName: 'FaKitchenSet', color: 'bg-blue-500' },
+  { id: 'bathroom', name: 'Bathroom', identifier: 'BATH-001', iconName: 'FaToilet', color: 'bg-green-500' },
+  { id: 'bedroom', name: 'Bedroom', identifier: 'BED-001', iconName: 'FaBed', color: 'bg-purple-500' },
+  { id: 'living-room', name: 'Living Room', identifier: 'LIVING-001', iconName: 'FaCouch', color: 'bg-yellow-500' },
+  { id: 'dining', name: 'Dining', identifier: 'DINING-001', iconName: 'FaUtensils', color: 'bg-red-500' },
+  { id: 'shower', name: 'Shower', identifier: 'SHOWER-001', iconName: 'FaShower', color: 'bg-indigo-500' },
 ];
 
 // Backend in-memory storage for layouts
@@ -79,14 +80,21 @@ export async function getLayouts(): Promise<{ [key: string]: any[] }> {
 }
 
 /**
- * Get a specific storage area by ID
+ * Get a specific storage area by ID or identifier
  */
-export async function getAreaById(id: string): Promise<AreaItem | null> {
+export async function getAreaById(idOrIdentifier: string): Promise<AreaItem | null> {
   try {
     // Add artificial delay to simulate network request
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    const area = storageAreas.find(area => area.id === id);
+    // First try to find by ID
+    let area = storageAreas.find(area => area.id === idOrIdentifier);
+    
+    // If not found, try to find by identifier
+    if (!area) {
+      area = storageAreas.find(area => area.identifier === idOrIdentifier);
+    }
+    
     return area || null;
   } catch (error) {
     console.error("Error fetching storage area:", error);

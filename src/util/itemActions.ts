@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getAreaById } from './storageActions';
 
 // Define item interface
 export interface StorageItem {
@@ -53,12 +54,16 @@ function getNormalizedId(id: string): string {
 /**
  * Get items for a specific storage location
  */
-export async function getItemsByStorageId(storageId: string): Promise<StorageItem[]> {
+export async function getItemsByStorageId(storageIdOrIdentifier: string): Promise<StorageItem[]> {
   try {
     // Add artificial delay to simulate network request
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    const normalizedId = getNormalizedId(storageId);
+    // First check if this is an identifier and get the actual ID
+    const area = await getAreaById(storageIdOrIdentifier);
+    const actualId = area ? area.id : storageIdOrIdentifier;
+    
+    const normalizedId = getNormalizedId(actualId);
     return itemStorage[normalizedId] || [];
   } catch (error) {
     console.error("Error fetching items:", error);
@@ -70,14 +75,18 @@ export async function getItemsByStorageId(storageId: string): Promise<StorageIte
  * Add a new item to storage
  */
 export async function addItem(
-  storageId: string, 
+  storageIdOrIdentifier: string, 
   item: Omit<StorageItem, 'id'>
 ): Promise<StorageItem> {
   try {
     // Add artificial delay to simulate network request
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    const normalizedId = getNormalizedId(storageId);
+    // First check if this is an identifier and get the actual ID
+    const area = await getAreaById(storageIdOrIdentifier);
+    const actualId = area ? area.id : storageIdOrIdentifier;
+    
+    const normalizedId = getNormalizedId(actualId);
     const storage = getOrCreateStorage(normalizedId);
     
     // Generate a new ID
@@ -88,7 +97,7 @@ export async function addItem(
     storage.push(newItem);
     
     // Revalidate the storage page to reflect changes
-    revalidatePath(`/storage/${storageId}`);
+    revalidatePath(`/storage/${storageIdOrIdentifier}`);
     
     return newItem;
   } catch (error) {
@@ -101,7 +110,7 @@ export async function addItem(
  * Update an existing item's details
  */
 export async function updateItem(
-  storageId: string,
+  storageIdOrIdentifier: string,
   itemId: string,
   updates: Partial<Omit<StorageItem, 'id'>>
 ): Promise<StorageItem | null> {
@@ -109,7 +118,11 @@ export async function updateItem(
     // Add artificial delay to simulate network request
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    const normalizedId = getNormalizedId(storageId);
+    // First check if this is an identifier and get the actual ID
+    const area = await getAreaById(storageIdOrIdentifier);
+    const actualId = area ? area.id : storageIdOrIdentifier;
+    
+    const normalizedId = getNormalizedId(actualId);
     const storage = itemStorage[normalizedId];
     
     if (!storage) return null;
@@ -126,7 +139,7 @@ export async function updateItem(
     storage[itemIndex] = updatedItem;
     
     // Revalidate the storage page to reflect changes
-    revalidatePath(`/storage/${storageId}`);
+    revalidatePath(`/storage/${storageIdOrIdentifier}`);
     
     return updatedItem;
   } catch (error) {
@@ -139,25 +152,34 @@ export async function updateItem(
  * Remove an item from storage
  */
 export async function removeItem(
-  storageId: string, 
+  storageIdOrIdentifier: string, 
   itemId: string
 ): Promise<boolean> {
   try {
     // Add artificial delay to simulate network request
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    const normalizedId = getNormalizedId(storageId);
+    // First check if this is an identifier and get the actual ID
+    const area = await getAreaById(storageIdOrIdentifier);
+    const actualId = area ? area.id : storageIdOrIdentifier;
+    
+    const normalizedId = getNormalizedId(actualId);
     const storage = itemStorage[normalizedId];
     
     if (!storage) return false;
     
-    const initialLength = storage.length;
+    const initialCount = storage.length;
     itemStorage[normalizedId] = storage.filter(item => item.id !== itemId);
     
-    // Revalidate the storage page to reflect changes
-    revalidatePath(`/storage/${storageId}`);
+    // Check if an item was actually removed
+    const wasRemoved = initialCount > itemStorage[normalizedId].length;
     
-    return itemStorage[normalizedId].length < initialLength;
+    if (wasRemoved) {
+      // Revalidate the storage page to reflect changes
+      revalidatePath(`/storage/${storageIdOrIdentifier}`);
+    }
+    
+    return wasRemoved;
   } catch (error) {
     console.error("Error removing item:", error);
     return false;
