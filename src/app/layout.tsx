@@ -72,20 +72,14 @@ export default function RootLayout({
           <div className="container mx-auto px-4">
             <div className="flex flex-col md:flex-row justify-between items-center">
               <div className="mb-4 md:mb-0">
-                <p className="text-gray-400 text-sm">
+                <p className="text-gray-700 text-sm">
                   &copy; {new Date().getFullYear()} PantryPal. All rights reserved.
                 </p>
               </div>
               <div className="flex space-x-4">
-                <a href="#" className="text-gray-400 hover:text-secondary-400 transition-colors">
-                  Privacy Policy
-                </a>
-                <a href="#" className="text-gray-400 hover:text-secondary-400 transition-colors">
-                  Terms of Service
-                </a>
-                <a href="#" className="text-gray-400 hover:text-secondary-400 transition-colors">
-                  Contact
-                </a>
+                <span className="text-gray-700">
+                  This entire website was crafted by an AI that dreams of electric sheep 🤖
+                </span>
               </div>
             </div>
           </div>

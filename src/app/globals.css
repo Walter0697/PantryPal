@@ -29,6 +29,7 @@ body {
 .dark-element {
   background-color: var(--dark-blue);
   border-color: var(--dark-blue-light);
+  color: white;
 }
 
 /* Custom scrollbar */
@@ -47,4 +48,41 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #003d99;
+}
+
+/* Dropdown menu animation */
+@keyframes dropdown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-dropdown {
+  animation: dropdown 0.2s ease-out forwards;
+}
+
+/* Dropdown menu specific styling */
+.dropdown-menu {
+  background-color: var(--dark-blue);
+  border: 1px solid var(--dark-blue-light);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+  backdrop-filter: none; /* Ensure no transparency */
+}
+
+/* Action button hover effects */
+.action-button {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  color: var(--secondary);
+  border-color: var(--secondary);
 }

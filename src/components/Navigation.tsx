@@ -1,55 +1,44 @@
 'use client';
 
 import Link from 'next/link';
-import { FaUtensils } from 'react-icons/fa';
-import LogoutButton from './LogoutButton';
+import { useState, useRef, useEffect } from 'react';
+import { FaUtensils, FaBars, FaSignOutAlt, FaList } from 'react-icons/fa';
 import { useAuth } from './AuthProvider';
+import { useRouter } from 'next/navigation';
 
 export default function Navigation() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, logout } = useAuth();
+  const router = useRouter();
+  
+  const handleLogout = () => {
+    logout();
+  };
+  
+  const navigateToHome = () => {
+    router.push('/home');
+  };
 
   return (
     <header className="dark-element border-b border-primary-600 shadow-md">
       <div className="container mx-auto px-4 py-3">
         <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-2">
+          <div 
+            className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity" 
+            onClick={navigateToHome}
+          >
             <FaUtensils className="text-secondary-500 text-2xl" />
-            <span className="text-xl font-bold text-white">PantryPal</span>
+            <span className="text-xl font-bold text-white hover:text-secondary-500 transition-colors">PantryPal</span>
           </div>
           
           {isLoggedIn && (
-            <>
-              <nav className="hidden md:flex space-x-3">
-                <Link 
-                  href="/home" 
-                  className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-1.5 rounded-md shadow-sm border border-primary-700 transition-colors text-sm font-medium"
-                >
-                  Dashboard
-                </Link>
-                <Link 
-                  href="#" 
-                  className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-1.5 rounded-md shadow-sm border border-primary-700 transition-colors text-sm font-medium"
-                >
-                  Inventory
-                </Link>
-                <Link 
-                  href="#" 
-                  className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-1.5 rounded-md shadow-sm border border-primary-700 transition-colors text-sm font-medium"
-                >
-                  Shopping List
-                </Link>
-                <Link 
-                  href="#" 
-                  className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-1.5 rounded-md shadow-sm border border-primary-700 transition-colors text-sm font-medium"
-                >
-                  Recipes
-                </Link>
-              </nav>
-              
-              <div className="flex items-center space-x-4">
-                <LogoutButton />
-              </div>
-            </>
+            <button
+              onClick={handleLogout}
+              className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white hover:text-secondary-500 px-3 py-1.5 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
+              aria-label="Logout"
+            >
+              <FaSignOutAlt className="text-sm mr-2" />
+              <span className="text-sm font-medium">Logout</span>
+            </button>
           )}
         </div>
       </div>

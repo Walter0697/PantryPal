@@ -4,12 +4,34 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'rea
 import { Responsive, WidthProvider, Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+import { IconType } from 'react-icons';
 import { FaKitchenSet, FaToilet, FaBed, FaCouch, FaUtensils, FaShower, 
          FaTrash, FaCar, FaGamepad, FaLaptop, FaBook, FaWrench, 
-         FaWineBottle, FaShirt, FaGuitar, FaUmbrellaBeach } from 'react-icons/fa6';
+         FaWineBottle, FaShirt, FaGuitar, FaUmbrellaBeach, FaBox, FaGripLines } from 'react-icons/fa6';
+import { AreaItem, loadSavedData, saveAreas, saveLayouts } from '../util/storage';
 
 // Enable responsiveness
 const ResponsiveGridLayout = WidthProvider(Responsive);
+
+// Map of icon names to components for serialization/deserialization
+const iconMap: { [key: string]: IconType } = {
+  'FaKitchenSet': FaKitchenSet,
+  'FaToilet': FaToilet, 
+  'FaBed': FaBed, 
+  'FaCouch': FaCouch, 
+  'FaUtensils': FaUtensils, 
+  'FaShower': FaShower,
+  'FaCar': FaCar, 
+  'FaGamepad': FaGamepad, 
+  'FaLaptop': FaLaptop, 
+  'FaBook': FaBook, 
+  'FaWrench': FaWrench, 
+  'FaWineBottle': FaWineBottle, 
+  'FaShirt': FaShirt, 
+  'FaGuitar': FaGuitar, 
+  'FaUmbrellaBeach': FaUmbrellaBeach,
+  'FaBox': FaBox
+};
 
 // All available icons for random selection
 const allIcons = [
@@ -18,6 +40,9 @@ const allIcons = [
   FaShirt, FaGuitar, FaUmbrellaBeach
 ];
 
+// Icon name to use when we can't find an icon
+const fallbackIcon = FaBox;
+
 // All available colors for random selection
 const allColors = [
   'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-yellow-500', 
@@ -25,14 +50,25 @@ const allColors = [
   'bg-orange-500', 'bg-cyan-500'
 ];
 
+// Helper to get icon name from component for storage
+const getIconName = (iconComponent: IconType): string => {
+  const iconEntries = Object.entries(iconMap);
+  for (const [name, component] of iconEntries) {
+    if (component === iconComponent) {
+      return name;
+    }
+  }
+  return 'FaBox'; // Default fallback
+};
+
 // Initial areas
 const initialAreas = [
-  { id: 'kitchen', name: 'Kitchen', icon: FaKitchenSet, color: 'bg-blue-500' },
-  { id: 'bathroom', name: 'Bathroom', icon: FaToilet, color: 'bg-green-500' },
-  { id: 'bedroom', name: 'Bedroom', icon: FaBed, color: 'bg-purple-500' },
-  { id: 'living-room', name: 'Living Room', icon: FaCouch, color: 'bg-yellow-500' },
-  { id: 'dining', name: 'Dining', icon: FaUtensils, color: 'bg-red-500' },
-  { id: 'shower', name: 'Shower', icon: FaShower, color: 'bg-indigo-500' },
+  { id: 'kitchen', name: 'Kitchen', iconName: 'FaKitchenSet', color: 'bg-blue-500' },
+  { id: 'bathroom', name: 'Bathroom', iconName: 'FaToilet', color: 'bg-green-500' },
+  { id: 'bedroom', name: 'Bedroom', iconName: 'FaBed', color: 'bg-purple-500' },
+  { id: 'living-room', name: 'Living Room', iconName: 'FaCouch', color: 'bg-yellow-500' },
+  { id: 'dining', name: 'Dining', iconName: 'FaUtensils', color: 'bg-red-500' },
+  { id: 'shower', name: 'Shower', iconName: 'FaShower', color: 'bg-indigo-500' },
 ];
 
 // Define the default layouts for different breakpoints
@@ -70,30 +106,8 @@ interface GridLayoutProps {
   onResetToOriginal?: () => void;
 }
 
-// Type for area objects
-interface AreaItem {
-  id: string;
-  name: string;
-  icon: React.ComponentType;
-  color: string;
-}
-
 // Export with forwardRef to allow parent components to call methods
 const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChange, onAddBox, onResetToOriginal }, ref) => {
-  // Load saved layouts and areas from localStorage or use defaults
-  const loadSavedData = () => {
-    if (typeof window !== 'undefined') {
-      const savedLayouts = localStorage.getItem('gridLayouts');
-      const savedAreas = localStorage.getItem('gridAreas');
-      
-      return {
-        layouts: savedLayouts ? JSON.parse(savedLayouts) : defaultLayouts,
-        areas: savedAreas ? JSON.parse(savedAreas) : initialAreas
-      };
-    }
-    return { layouts: defaultLayouts, areas: initialAreas };
-  };
-
   // State for saved data (persisted in localStorage)
   const [savedData, setSavedData] = useState(loadSavedData());
   
@@ -125,8 +139,8 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
       areas: editingAreas
     };
     
-    localStorage.setItem('gridLayouts', JSON.stringify(editingLayouts));
-    localStorage.setItem('gridAreas', JSON.stringify(editingAreas));
+    saveLayouts(editingLayouts);
+    saveAreas(editingAreas);
     
     setSavedData(newSavedData);
     
@@ -135,8 +149,14 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
 
   // Method to reset to original state
   const resetToOriginal = () => {
-    setEditingAreas([...savedData.areas]);
-    setEditingLayouts(JSON.parse(JSON.stringify(savedData.layouts)));
+    const originalAreas = [...savedData.areas];
+    const originalLayouts = JSON.parse(JSON.stringify(savedData.layouts));
+    
+    setEditingAreas(originalAreas);
+    setEditingLayouts(originalLayouts);
+    
+    // Notify parent component of layout reset
+    onLayoutChange(originalLayouts);
     
     if (onResetToOriginal) {
       onResetToOriginal();
@@ -150,9 +170,16 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
     resetToOriginal
   }));
 
-  const handleBoxClick = (areaName: string) => {
+  const handleBoxClick = (areaId: string) => {
     if (!isEditMode) {
-      console.log(`Clicked on ${areaName}`);
+      // Navigate to the storage page with the box ID
+      // Using a more controlled approach than direct window.location assignment
+      const storageUrl = `/storage/${areaId}`;
+      
+      // This creates a cleaner navigation experience without a full page reload
+      const a = document.createElement('a');
+      a.href = storageUrl;
+      a.click();
     }
   };
 
@@ -185,13 +212,14 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
     
     // Random icon and color
     const randomIcon = allIcons[Math.floor(Math.random() * allIcons.length)];
+    const randomIconName = getIconName(randomIcon);
     const randomColor = allColors[Math.floor(Math.random() * allColors.length)];
     
     // Create new area
     const newArea = {
       id: newId,
       name: name,
-      icon: randomIcon,
+      iconName: randomIconName,
       color: randomColor
     };
     
@@ -237,17 +265,6 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
 
   return (
     <div className="p-4">
-      {isEditMode && (
-        <div className="mb-4 flex justify-end">
-          <button
-            onClick={handleAddBox}
-            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center"
-          >
-            <span className="mr-1">+</span> Add New Box
-          </button>
-        </div>
-      )}
-      
       <ResponsiveGridLayout
         className="layout"
         layouts={displayLayouts}
@@ -260,25 +277,18 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
         onLayoutChange={handleLayoutChange}
       >
       {displayAreas.map((area: AreaItem) => {
-          const Icon = area.icon;
+          const Icon = iconMap[area.iconName] || FaBox;
           return (
             <div 
               key={area.id} 
               className={`${area.color} rounded-lg shadow-lg p-4 flex flex-col items-center justify-center cursor-pointer transition-transform ${isEditMode ? 'cursor-move' : 'hover:scale-102'}`}
-              onClick={() => handleBoxClick(area.name)}
+              onClick={() => handleBoxClick(area.id)}
             >
               {isEditMode && (
                 <>
-                  <div className="absolute top-2 right-2 bg-white bg-opacity-80 rounded-full p-1 text-xs">
-                    Drag to move
+                  <div className="absolute top-2 right-2 bg-white bg-opacity-80 rounded-full p-1.5 cursor-move" title="Drag to move">
+                    <FaGripLines className="text-gray-700" />
                   </div>
-                  <button 
-                    className="absolute top-2 left-2 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 transition-colors"
-                    onClick={(e) => handleRemoveBox(e, area.id)}
-                    title="Remove box"
-                  >
-                    <FaTrash size={14} />
-                  </button>
                 </>
               )}
               <Icon className="text-white text-4xl mb-2" />

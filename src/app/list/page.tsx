@@ -1,0 +1,366 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { FaEdit, FaTrash, FaArrowLeft, FaSave, FaTimesCircle, FaPlus } from 'react-icons/fa';
+import { IconType } from 'react-icons';
+import * as Icons from 'react-icons/fa6';
+import { AreaItem, getAreas, updateArea, removeArea, addArea, isAreaNameDuplicate } from '../../util/storage';
+
+export default function ListPage() {
+  const router = useRouter();
+  const [areas, setAreas] = useState<AreaItem[]>([]);
+  const [filteredAreas, setFilteredAreas] = useState<AreaItem[]>([]);
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editColor, setEditColor] = useState('');
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newBoxName, setNewBoxName] = useState('');
+  const [newBoxColor, setNewBoxColor] = useState('bg-blue-500');
+  const [newBoxIcon, setNewBoxIcon] = useState('FaBox');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Colors available for selection
+  const colorOptions = [
+    'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-yellow-500', 
+    'bg-red-500', 'bg-indigo-500', 'bg-pink-500', 'bg-teal-500',
+    'bg-orange-500', 'bg-cyan-500'
+  ];
+
+  // Popular icons for selection
+  const popularIcons = [
+    'FaBox', 'FaKitchenSet', 'FaToilet', 'FaBed', 'FaCouch', 'FaUtensils', 
+    'FaShower', 'FaCar', 'FaGamepad', 'FaLaptop', 'FaBook', 'FaWrench',
+    'FaWineBottle', 'FaShirt', 'FaGuitar', 'FaUmbrellaBeach'
+  ];
+
+  // Load data
+  useEffect(() => {
+    const loadedAreas = getAreas();
+    setAreas(loadedAreas);
+    setFilteredAreas(loadedAreas);
+  }, []);
+
+  // Filter areas when search term changes
+  useEffect(() => {
+    if (areas.length > 0) {
+      if (searchTerm) {
+        const filtered = areas.filter((area: AreaItem) => 
+          area.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        setFilteredAreas(filtered);
+      } else {
+        setFilteredAreas(areas);
+      }
+    }
+  }, [searchTerm, areas]);
+
+  // Handle back button click
+  const handleBackClick = () => {
+    router.push('/home');
+  };
+
+  // Start editing an item
+  const handleEditClick = (item: AreaItem) => {
+    setEditingItem(item.id);
+    setEditName(item.name);
+    setEditColor(item.color);
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setEditingItem(null);
+    setEditName('');
+    setEditColor('');
+  };
+
+  // Save edited item
+  const handleSaveEdit = (id: string) => {
+    const trimmedName = editName.trim();
+    if (!trimmedName) {
+      alert("Box name cannot be empty");
+      return;
+    }
+    
+    // Check for duplicate names (excluding the current box)
+    if (isAreaNameDuplicate(trimmedName, id)) {
+      alert("A box with this name already exists. Please use a different name.");
+      return;
+    }
+    
+    // Update the area
+    const updatedArea = updateArea(id, { 
+      name: trimmedName, 
+      color: editColor 
+    });
+    
+    if (updatedArea) {
+      // Refresh the data
+      const updatedAreas = getAreas();
+      setAreas(updatedAreas);
+      setFilteredAreas(updatedAreas);
+    }
+    
+    setEditingItem(null);
+  };
+
+  // Remove an item
+  const handleRemoveClick = (id: string) => {
+    if (confirm('Are you sure you want to remove this box?')) {
+      // Remove the area and its layout entries
+      const success = removeArea(id);
+      
+      if (success) {
+        // Refresh the data
+        const updatedAreas = getAreas();
+        setAreas(updatedAreas);
+        setFilteredAreas(updatedAreas);
+      }
+    }
+  };
+
+  // Get icon component from name
+  const getIconComponent = (iconName: string): IconType => {
+    return (Icons as any)[iconName] || Icons.FaBox;
+  };
+
+  // Open create dialog
+  const handleCreateClick = () => {
+    setNewBoxName('');
+    setNewBoxColor('bg-blue-500');
+    setNewBoxIcon('FaBox');
+    setShowCreateDialog(true);
+  };
+
+  // Cancel create dialog
+  const handleCancelCreate = () => {
+    setShowCreateDialog(false);
+  };
+
+  // Save new box
+  const handleSaveCreate = () => {
+    const trimmedName = newBoxName.trim();
+    if (!trimmedName) {
+      alert("Box name cannot be empty");
+      return;
+    }
+    
+    // Check for duplicate names
+    if (isAreaNameDuplicate(trimmedName)) {
+      alert("A box with this name already exists. Please use a different name.");
+      return;
+    }
+    
+    // Add the new area
+    const newArea = addArea({
+      name: trimmedName,
+      iconName: newBoxIcon,
+      color: newBoxColor
+    });
+    
+    // Refresh the data
+    const updatedAreas = getAreas();
+    setAreas(updatedAreas);
+    setFilteredAreas(updatedAreas);
+    
+    setShowCreateDialog(false);
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-white">Box List</h1>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleCreateClick}
+            className="flex items-center bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors cursor-pointer"
+          >
+            <FaPlus className="mr-2" />
+            <span>Create New Box</span>
+          </button>
+          <button
+            onClick={handleBackClick}
+            className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white hover:text-secondary-500 px-3 py-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
+          >
+            <FaArrowLeft className="mr-2" />
+            <span>Back to Dashboard</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="mb-6">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search boxes..."
+          className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+        />
+      </div>
+
+      {filteredAreas.length === 0 ? (
+        <div className="text-center py-10">
+          <p className="text-gray-300 text-lg">No boxes found. Create some boxes on the dashboard first.</p>
+        </div>
+      ) : (
+        <div className="bg-dark-blue rounded-lg shadow-lg overflow-hidden max-h-[70vh] overflow-y-auto">
+          <ul className="divide-y divide-primary-700">
+            {filteredAreas.map(item => {
+              const Icon = getIconComponent(item.iconName);
+              
+              return (
+                <li key={item.id} className="p-4 hover:bg-dark-blue-light transition-colors">
+                  {editingItem === item.id ? (
+                    <div className="flex flex-col space-y-4">
+                      <div>
+                        <label className="block text-gray-300 mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-gray-300 mb-1">Color</label>
+                        <div className="flex flex-wrap gap-2">
+                          {colorOptions.map(color => (
+                            <button
+                              key={color}
+                              type="button"
+                              className={`w-8 h-8 rounded-full ${color} ${editColor === color ? 'ring-2 ring-white' : ''} hover:opacity-80 transition-opacity cursor-pointer`}
+                              onClick={() => setEditColor(color)}
+                              aria-label={`Select ${color} color`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={handleCancelEdit}
+                          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md shadow-sm border border-red-800 transition-colors flex items-center cursor-pointer"
+                        >
+                          <FaTimesCircle className="mr-1" />
+                          <span>Cancel</span>
+                        </button>
+                        <button
+                          onClick={() => handleSaveEdit(item.id)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-md shadow-sm border border-green-800 transition-colors flex items-center cursor-pointer"
+                        >
+                          <FaSave className="mr-1" />
+                          <span>Save</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center">
+                        <div className={`${item.color} p-2 rounded-md mr-3`}>
+                          <Icon className="text-white text-xl" />
+                        </div>
+                        <span className="text-white font-medium">{item.name}</span>
+                      </div>
+                      
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleEditClick(item)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md shadow-sm border border-blue-800 transition-colors cursor-pointer"
+                          title="Edit"
+                        >
+                          <FaEdit />
+                        </button>
+                        <button
+                          onClick={() => handleRemoveClick(item.id)}
+                          className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-md shadow-sm border border-red-800 transition-colors cursor-pointer"
+                          title="Remove"
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* Create Box Dialog */}
+      {showCreateDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-dark-blue bg-opacity-90 border-2 border-primary-700 rounded-lg shadow-lg p-6 w-[500px] max-w-[90vw]">
+            <h3 className="text-xl font-bold text-white mb-4">Create New Box</h3>
+            <div className="flex flex-col space-y-4">
+              <div>
+                <label className="block text-gray-300 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={newBoxName}
+                  onChange={(e) => setNewBoxName(e.target.value)}
+                  className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white"
+                  placeholder="Enter a name for the box"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-300 mb-1">Color</label>
+                <div className="flex flex-wrap gap-2">
+                  {colorOptions.map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={`w-8 h-8 rounded-full ${color} ${newBoxColor === color ? 'ring-2 ring-white' : ''} hover:opacity-80 transition-opacity cursor-pointer`}
+                      onClick={() => setNewBoxColor(color)}
+                      aria-label={`Select ${color} color`}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-gray-300 mb-1">Icon</label>
+                <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-40 overflow-y-auto bg-dark-blue-light bg-opacity-70 p-2 rounded-md">
+                  {popularIcons.map(iconName => {
+                    const IconComponent = getIconComponent(iconName);
+                    return (
+                      <button
+                        key={iconName}
+                        type="button"
+                        className={`p-2 rounded-md ${newBoxIcon === iconName ? 'bg-primary-700 ring-2 ring-white' : 'bg-dark-blue hover:bg-dark-blue-light'} transition-colors cursor-pointer`}
+                        onClick={() => setNewBoxIcon(iconName)}
+                        aria-label={`Select ${iconName} icon`}
+                      >
+                        <IconComponent className="text-white text-xl mx-auto" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-2 mt-4">
+                <button
+                  onClick={handleCancelCreate}
+                  className="bg-red-600 hover:bg-red-700 text-white hover:text-white px-3 py-2 rounded-md shadow-sm border border-red-800 transition-colors flex items-center cursor-pointer"
+                >
+                  <FaTimesCircle className="mr-1" />
+                  <span>Cancel</span>
+                </button>
+                <button
+                  onClick={handleSaveCreate}
+                  className="bg-green-600 hover:bg-green-700 text-white hover:text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center cursor-pointer"
+                >
+                  <FaSave className="mr-1" />
+                  <span>Create</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+} 
