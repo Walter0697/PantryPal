@@ -338,6 +338,13 @@ export default function ListPage() {
                       
                       <div className="flex space-x-2">
                         <button
+                          onClick={() => router.push(`/storage/${item.identifier}`)}
+                          className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-md shadow-sm border border-green-800 transition-colors cursor-pointer"
+                          title="Go to Storage"
+                        >
+                          <Icons.FaBoxOpen />
+                        </button>
+                        <button
                           onClick={() => handleEditClick(item)}
                           className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md shadow-sm border border-blue-800 transition-colors cursor-pointer"
                           title="Edit"

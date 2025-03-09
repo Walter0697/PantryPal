@@ -138,8 +138,10 @@ export default function StoragePage({ params }: PageParams) {
     if (searchTerm.trim() === '') {
       setFilteredItems(items);
     } else {
+      const searchTermLower = searchTerm.toLowerCase();
       const filtered = items.filter(item => 
-        item.name.toLowerCase().includes(searchTerm.toLowerCase())
+        item.name.toLowerCase().includes(searchTermLower) || 
+        (item.category && item.category.toLowerCase().includes(searchTermLower))
       );
       setFilteredItems(filtered);
     }
@@ -408,80 +410,92 @@ export default function StoragePage({ params }: PageParams) {
       ) : (
         <div className="bg-dark-blue rounded-lg shadow-lg overflow-hidden">
           <ul className="divide-y divide-gray-800">
-            {filteredItems.map(item => (
-              <li key={item.id} className="p-4 hover:bg-dark-blue-light transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    {item.iconName && (
-                      <div className="text-2xl text-gray-300">
-                        {React.createElement(getIconComponent(item.iconName))}
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="font-semibold text-lg text-black">{item.name}</h3>
-                      <div className="text-sm text-black flex items-center space-x-2 font-medium">
-                        <span>Quantity: {item.quantity}{item.unit ? ` ${item.unit}` : ''}</span>
-                        {item.minQuantity !== undefined && item.minQuantity > 0 && (
-                          <span className="bg-gray-800 px-1.5 py-0.5 rounded text-xs text-white">
-                            Min: {item.minQuantity}
-                          </span>
-                        )}
-                        {item.category && (
-                          <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs text-white">
-                            {item.category}
-                          </span>
-                        )}
-                      </div>
-                      {item.notes && (
-                        <p className="text-sm text-black mt-1">{item.notes}</p>
+            {filteredItems.map(item => {
+              // Check if this is a low stock item (quantity <= minQuantity)
+              // Use 0 as default minimum quantity if undefined
+              const minQuantity = item.minQuantity !== undefined ? item.minQuantity : 0;
+              const isLowStock = item.quantity <= minQuantity;
+              
+              return (
+                <li 
+                  key={item.id} 
+                  className={`p-4 hover:bg-dark-blue-light transition-colors ${isLowStock ? 'bg-red-900 bg-opacity-70 hover:bg-red-800' : ''}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      {item.iconName && (
+                        <div className="text-2xl text-gray-300">
+                          {React.createElement(getIconComponent(item.iconName))}
+                        </div>
                       )}
+                      <div>
+                        <h3 className="font-semibold text-lg text-black">{item.name}</h3>
+                        <div className="text-sm text-black flex items-center space-x-2 font-medium">
+                          <span className={`${isLowStock ? 'text-white font-bold' : ''}`}>
+                            Quantity: {item.quantity}{item.unit ? ` ${item.unit}` : ''}
+                          </span>
+                          {item.minQuantity !== undefined && item.minQuantity > 0 && (
+                            <span className={`${isLowStock ? 'bg-red-700' : 'bg-gray-800'} px-1.5 py-0.5 rounded text-xs text-white`}>
+                              Min: {item.minQuantity}
+                            </span>
+                          )}
+                          {item.category && (
+                            <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs text-white">
+                              {item.category}
+                            </span>
+                          )}
+                        </div>
+                        {item.notes && (
+                          <p className="text-sm text-black mt-1">{item.notes}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    {/* Edit button */}
-                    <button
-                      onClick={() => handleEditClick(item)}
-                      className="p-2 text-white hover:text-white rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
-                      title="Edit Item"
-                    >
-                      <FaPencilAlt />
-                    </button>
                     
-                    {/* Delete button */}
-                    <button
-                      onClick={() => handleDeleteItem(item.id)}
-                      className="p-2 text-white hover:text-red-500 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
-                      title="Delete Item"
-                    >
-                      <FaTrash />
-                    </button>
-                    
-                    {/* Quantity adjustment buttons */}
-                    <div className="flex items-center bg-dark-blue-light rounded-md overflow-hidden">
-                      <button 
-                        onClick={() => handleQuantityChange(item.id, -1)}
-                        disabled={item.quantity <= 0}
-                        className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
-                        title="Decrease Quantity"
-                      >
-                        <FaMinus />
-                      </button>
-                      
-                      <span className="text-black px-2">{item.quantity}</span>
-                      
+                    <div className="flex items-center space-x-2">
+                      {/* Edit button */}
                       <button
-                        onClick={() => handleQuantityChange(item.id, 1)}
-                        className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
-                        title="Increase Quantity"
+                        onClick={() => handleEditClick(item)}
+                        className="p-2 text-white hover:text-white rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                        title="Edit Item"
                       >
-                        <FaPlus />
+                        <FaPencilAlt />
                       </button>
+                      
+                      {/* Delete button */}
+                      <button
+                        onClick={() => handleDeleteItem(item.id)}
+                        className="p-2 text-white hover:text-red-500 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                        title="Delete Item"
+                      >
+                        <FaTrash />
+                      </button>
+                      
+                      {/* Quantity adjustment buttons */}
+                      <div className="flex items-center bg-dark-blue-light rounded-md overflow-hidden">
+                        <button 
+                          onClick={() => handleQuantityChange(item.id, -1)}
+                          disabled={item.quantity <= 0}
+                          className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
+                          title="Decrease Quantity"
+                        >
+                          <FaMinus />
+                        </button>
+                        
+                        <span className="text-black px-2">{item.quantity}</span>
+                        
+                        <button
+                          onClick={() => handleQuantityChange(item.id, 1)}
+                          className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
+                          title="Increase Quantity"
+                        >
+                          <FaPlus />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
