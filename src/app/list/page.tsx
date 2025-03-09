@@ -342,8 +342,8 @@ export default function ListPage() {
                           <Icon className="text-white text-xl" />
                         </div>
                         <div>
-                          <span className="text-white font-medium">{item.name}</span>
-                          <div className="text-gray-400 text-sm">ID: {item.identifier}</div>
+                          <span className="text-black font-medium">{item.name}</span>
+                          <div className="text-black text-sm font-medium">ID: {item.identifier}</div>
                         </div>
                       </div>
                       

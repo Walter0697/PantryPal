@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot } from 'react-icons/fa';
+import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash } from 'react-icons/fa';
 import { getAreaByIdentifier } from '../../../util/server-only/gridStorage';
 import { 
   getAreaItems, 
@@ -333,6 +333,27 @@ export default function StoragePage({ params }: PageParams) {
     router.push('/home');
   };
 
+  // Handle item deletion
+  const handleDeleteItem = async (itemId: string) => {
+    if (window.confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
+      try {
+        const success = await deleteItem(areaIdentifier, itemId);
+        
+        if (success) {
+          // Update local state by removing the item
+          const updatedItems = items.filter(item => item.id !== itemId);
+          setItems(updatedItems);
+          setFilteredItems(filteredItems.filter(item => item.id !== itemId));
+          console.log(`Item ${itemId} deleted successfully`);
+        } else {
+          console.error('Failed to delete item');
+        }
+      } catch (error) {
+        console.error('Error deleting item:', error);
+      }
+    }
+  };
+
   // Render the page
   return (
     <div className="container mx-auto px-4 py-8">
@@ -341,7 +362,7 @@ export default function StoragePage({ params }: PageParams) {
         <div className="flex items-center space-x-4">
           <button
             onClick={handleBackClick}
-            className="bg-dark-blue hover:bg-dark-blue-light text-white p-2 rounded-md shadow-sm border border-primary-700"
+            className="bg-dark-blue hover:bg-dark-blue-light text-white p-2 rounded-md shadow-sm border border-primary-700 cursor-pointer"
             aria-label="Back to Home"
           >
             <FaArrowLeft className="text-xl" />
@@ -350,18 +371,12 @@ export default function StoragePage({ params }: PageParams) {
           <h1 className="text-2xl font-bold text-white">
             {boxName || 'Storage'}
           </h1>
-          
-          {boxIdentifier && (
-            <span className="text-gray-400 text-sm bg-dark-blue px-2 py-1 rounded-md">
-              {boxIdentifier}
-            </span>
-          )}
         </div>
         
         {/* Add Item Button */}
         <button
           onClick={handleAddItemClick}
-          className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center"
+          className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center cursor-pointer"
         >
           <FaPlus className="mr-2" />
           <span>Add Item</span>
@@ -402,22 +417,22 @@ export default function StoragePage({ params }: PageParams) {
                       </div>
                     )}
                     <div>
-                      <h3 className="font-semibold text-lg text-white">{item.name}</h3>
-                      <div className="text-sm text-gray-400 flex items-center space-x-2">
+                      <h3 className="font-semibold text-lg text-black">{item.name}</h3>
+                      <div className="text-sm text-black flex items-center space-x-2 font-medium">
                         <span>Quantity: {item.quantity}{item.unit ? ` ${item.unit}` : ''}</span>
                         {item.minQuantity !== undefined && item.minQuantity > 0 && (
-                          <span className="bg-gray-800 px-1.5 py-0.5 rounded text-xs">
+                          <span className="bg-gray-800 px-1.5 py-0.5 rounded text-xs text-white">
                             Min: {item.minQuantity}
                           </span>
                         )}
                         {item.category && (
-                          <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs">
+                          <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs text-white">
                             {item.category}
                           </span>
                         )}
                       </div>
                       {item.notes && (
-                        <p className="text-sm text-gray-500 mt-1">{item.notes}</p>
+                        <p className="text-sm text-black mt-1">{item.notes}</p>
                       )}
                     </div>
                   </div>
@@ -426,31 +441,37 @@ export default function StoragePage({ params }: PageParams) {
                     {/* Edit button */}
                     <button
                       onClick={() => handleEditClick(item)}
-                      className="p-2 text-gray-400 hover:text-white rounded-full hover:bg-gray-800 transition-colors"
+                      className="p-2 text-white hover:text-white rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
                       title="Edit Item"
                     >
                       <FaPencilAlt />
                     </button>
                     
+                    {/* Delete button */}
+                    <button
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="p-2 text-white hover:text-red-500 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                      title="Delete Item"
+                    >
+                      <FaTrash />
+                    </button>
+                    
                     {/* Quantity adjustment buttons */}
                     <div className="flex items-center bg-dark-blue-light rounded-md overflow-hidden">
-                      <button
-                        disabled={updating === item.id}
+                      <button 
                         onClick={() => handleQuantityChange(item.id, -1)}
-                        className="p-2 text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                        disabled={item.quantity <= 0}
+                        className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
                         title="Decrease Quantity"
                       >
                         <FaMinus />
                       </button>
                       
-                      <span className="w-10 text-center font-mono text-white">
-                        {updating === item.id ? '...' : item.quantity}
-                      </span>
+                      <span className="text-black px-2">{item.quantity}</span>
                       
                       <button
-                        disabled={updating === item.id}
                         onClick={() => handleQuantityChange(item.id, 1)}
-                        className="p-2 text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                        className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
                         title="Increase Quantity"
                       >
                         <FaPlus />
@@ -561,14 +582,14 @@ export default function StoragePage({ params }: PageParams) {
               <div className="mt-6 flex justify-end space-x-3">
                 <button
                   onClick={() => setShowEditDialog(false)}
-                  className="px-4 py-2 bg-dark-blue-light hover:bg-dark-blue text-white rounded-md transition-colors"
+                  className="px-4 py-2 bg-dark-blue-light hover:bg-dark-blue text-white rounded-md transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleEditSave}
                   disabled={isSaving}
-                  className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -675,14 +696,14 @@ export default function StoragePage({ params }: PageParams) {
               <div className="mt-6 flex justify-end space-x-3">
                 <button
                   onClick={() => setShowAddDialog(false)}
-                  className="px-4 py-2 bg-dark-blue-light hover:bg-dark-blue text-white rounded-md transition-colors"
+                  className="px-4 py-2 bg-dark-blue-light hover:bg-dark-blue text-white rounded-md transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddItemSave}
                   disabled={isAdding}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {isAdding ? 'Adding...' : 'Add Item'}
                 </button>

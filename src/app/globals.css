@@ -74,6 +74,11 @@ body {
   backdrop-filter: none; /* Ensure no transparency */
 }
 
+/* Make all buttons use pointer cursor by default */
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 /* Action button hover effects */
 .action-button {
   cursor: pointer;
