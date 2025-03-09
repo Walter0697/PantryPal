@@ -1,4 +1,12 @@
 import { Layout } from 'react-grid-layout';
+import { 
+  getAreas as getServerAreas,
+  getLayouts as getServerLayouts,
+  saveAreas as saveServerAreas,
+  saveLayouts as saveServerLayouts,
+  isAreaIdentifierDuplicate as isServerAreaIdentifierDuplicate,
+  getAreaById as getServerAreaById
+} from './server-only/gridStorage';
 
 // Define types for our storage
 export interface AreaItem {
@@ -55,6 +63,26 @@ const defaultLayouts = {
 // Helper to check if we're in a browser environment
 const isBrowser = () => typeof window !== 'undefined';
 
+// Helper function to get the current user ID
+const getCurrentUserId = (): string => {
+  // This is a placeholder. You should replace it with your actual method of getting the current user ID
+  // For example, if you're using a context, you might call a hook or access a global state
+  if (!isBrowser()) return 'server';
+  
+  // Get the JWT token from localStorage - this is allowed as it's auth related
+  const token = localStorage.getItem('jwtToken');
+  if (!token) return 'anonymous';
+  
+  try {
+    // Parse the JWT token to get the user ID
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.sub || 'anonymous';
+  } catch (e) {
+    console.error('Error parsing JWT token', e);
+    return 'anonymous';
+  }
+};
+
 // Helper to ensure all areas have identifiers
 const migrateAreasWithIdentifiers = (areas: AreaItem[]): AreaItem[] => {
   return areas.map((area, index) => {
@@ -71,60 +99,33 @@ const migrateAreasWithIdentifiers = (areas: AreaItem[]): AreaItem[] => {
 /**
  * Get all areas/boxes
  */
-export const getAreas = (): AreaItem[] => {
-  if (!isBrowser()) return defaultAreas;
-  
-  const savedAreas = localStorage.getItem(AREAS_STORAGE_KEY);
-  if (!savedAreas) return defaultAreas;
-  
-  try {
-    const parsedAreas = JSON.parse(savedAreas);
-    // Apply migration to ensure all areas have identifiers
-    const migratedAreas = migrateAreasWithIdentifiers(parsedAreas);
-    
-    // If we had to add identifiers, save the updated areas
-    if (JSON.stringify(parsedAreas) !== JSON.stringify(migratedAreas)) {
-      saveAreas(migratedAreas);
-    }
-    
-    return migratedAreas;
-  } catch (error) {
-    console.error('Error parsing areas from localStorage:', error);
-    return defaultAreas;
-  }
+export const getAreas = async (): Promise<AreaItem[]> => {
+  const userId = getCurrentUserId();
+  return await getServerAreas(userId);
 };
 
 /**
  * Get all layouts from localStorage
  */
-export const getLayouts = (): LayoutConfig => {
-  if (!isBrowser()) return defaultLayouts;
-  
-  const savedLayouts = localStorage.getItem(LAYOUTS_STORAGE_KEY);
-  if (!savedLayouts) return defaultLayouts;
-  
-  try {
-    return JSON.parse(savedLayouts);
-  } catch (error) {
-    console.error('Error parsing layouts from localStorage:', error);
-    return defaultLayouts;
-  }
+export const getLayouts = async (): Promise<LayoutConfig> => {
+  const userId = getCurrentUserId();
+  return await getServerLayouts(userId);
 };
 
 /**
  * Save areas to localStorage
  */
-export const saveAreas = (areas: AreaItem[]): void => {
-  if (!isBrowser()) return;
-  localStorage.setItem(AREAS_STORAGE_KEY, JSON.stringify(areas));
+export const saveAreas = async (areas: AreaItem[]): Promise<void> => {
+  const userId = getCurrentUserId();
+  await saveServerAreas(userId, areas);
 };
 
 /**
  * Save layouts to localStorage
  */
-export const saveLayouts = (layouts: LayoutConfig): void => {
-  if (!isBrowser()) return;
-  localStorage.setItem(LAYOUTS_STORAGE_KEY, JSON.stringify(layouts));
+export const saveLayouts = async (layouts: LayoutConfig): Promise<void> => {
+  const userId = getCurrentUserId();
+  await saveServerLayouts(userId, layouts);
 };
 
 /**
@@ -138,30 +139,26 @@ export const isAreaNameDuplicate = (name: string, excludeId?: string): boolean =
 /**
  * Check if an identifier is already in use by another area
  */
-export const isAreaIdentifierDuplicate = (identifier: string, excludeId?: string): boolean => {
-  const areas = getAreas();
-  return areas.some(area => 
-    area.id !== excludeId && 
-    area.identifier && identifier &&
-    area.identifier.toLowerCase() === identifier.toLowerCase()
-  );
+export const isAreaIdentifierDuplicate = async (identifier: string, excludeId?: string): Promise<boolean> => {
+  const userId = getCurrentUserId();
+  return await isServerAreaIdentifierDuplicate(userId, identifier, excludeId);
 };
 
 /**
  * Add a new area/box
  */
-export const addArea = (newArea: Omit<AreaItem, 'id'>): AreaItem => {
+export const addArea = async (newArea: Omit<AreaItem, 'id'>): Promise<AreaItem> => {
   // Generate a unique ID
   const newId = `box-${Date.now()}`;
   const areaWithId = { ...newArea, id: newId };
   
   // Add to areas
-  const areas = getAreas();
+  const areas = await getAreas();
   const updatedAreas = [...areas, areaWithId];
-  saveAreas(updatedAreas);
+  await saveAreas(updatedAreas);
   
   // Add to layouts
-  const layouts = getLayouts();
+  const layouts = await getLayouts();
   const updatedLayouts = { ...layouts };
   
   Object.keys(updatedLayouts).forEach(breakpoint => {
@@ -183,7 +180,7 @@ export const addArea = (newArea: Omit<AreaItem, 'id'>): AreaItem => {
     updatedLayouts[breakpoint] = [...updatedLayouts[breakpoint], newItem];
   });
   
-  saveLayouts(updatedLayouts);
+  await saveLayouts(updatedLayouts);
   
   return areaWithId;
 };
@@ -191,8 +188,8 @@ export const addArea = (newArea: Omit<AreaItem, 'id'>): AreaItem => {
 /**
  * Update an existing area/box
  */
-export const updateArea = (id: string, updates: Partial<Omit<AreaItem, 'id'>>): AreaItem | null => {
-  const areas = getAreas();
+export const updateArea = async (id: string, updates: Partial<Omit<AreaItem, 'id'>>): Promise<AreaItem | null> => {
+  const areas = await getAreas();
   const areaIndex = areas.findIndex(area => area.id === id);
   
   if (areaIndex === -1) return null;
@@ -202,16 +199,16 @@ export const updateArea = (id: string, updates: Partial<Omit<AreaItem, 'id'>>): 
   const updatedAreas = [...areas];
   updatedAreas[areaIndex] = updatedArea;
   
-  saveAreas(updatedAreas);
+  await saveAreas(updatedAreas);
   return updatedArea;
 };
 
 /**
  * Remove an area/box
  */
-export const removeArea = (id: string): boolean => {
+export const removeArea = async (id: string): Promise<boolean> => {
   // Remove from areas
-  const areas = getAreas();
+  const areas = await getAreas();
   const updatedAreas = areas.filter(area => area.id !== id);
   
   if (updatedAreas.length === areas.length) {
@@ -219,34 +216,34 @@ export const removeArea = (id: string): boolean => {
     return false;
   }
   
-  saveAreas(updatedAreas);
+  await saveAreas(updatedAreas);
   
   // Remove from layouts
-  const layouts = getLayouts();
+  const layouts = await getLayouts();
   const updatedLayouts: { [key: string]: Layout[] } = {};
   
   Object.keys(layouts).forEach(breakpoint => {
     updatedLayouts[breakpoint] = layouts[breakpoint].filter(item => item.i !== id);
   });
   
-  saveLayouts(updatedLayouts);
+  await saveLayouts(updatedLayouts);
   return true;
 };
 
 /**
  * Get a specific area by ID
  */
-export const getAreaById = (id: string): AreaItem | undefined => {
-  const areas = getAreas();
-  return areas.find(area => area.id === id);
+export const getAreaById = async (id: string): Promise<AreaItem | undefined> => {
+  const userId = getCurrentUserId();
+  return await getServerAreaById(userId, id);
 };
 
 /**
  * Load all saved data (areas and layouts)
  */
-export const loadSavedData = () => {
+export const loadSavedData = async () => {
   return {
-    areas: getAreas(),
-    layouts: getLayouts()
+    areas: await getAreas(),
+    layouts: await getLayouts()
   };
 }; 

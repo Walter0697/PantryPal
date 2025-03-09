@@ -6,7 +6,7 @@ import { FaEdit, FaSave, FaTimesCircle, FaList } from 'react-icons/fa';
 import dynamic from 'next/dynamic';
 import { Layout } from 'react-grid-layout';
 import { useAuth } from '../../components/AuthProvider';
-import { getLayouts, saveLayouts } from '../../util/storage';
+import { getLayouts, saveLayouts, LayoutConfig } from '../../util/storage';
 
 // Dynamically import the GridLayout component to avoid SSR issues
 const GridLayout = dynamic(() => import('../../components/GridLayout'), {
@@ -17,21 +17,30 @@ export default function HomePage() {
   const router = useRouter();
   const { logout } = useAuth();
   const [isEditMode, setIsEditMode] = useState(false);
-  const [currentLayouts, setCurrentLayouts] = useState<{ [key: string]: Layout[] }>({});
-  const [temporaryLayouts, setTemporaryLayouts] = useState<{ [key: string]: Layout[] }>({});
-  const [showNameDialog, setShowNameDialog] = useState(false);
-  const [newBoxName, setNewBoxName] = useState('');
-  const nameInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentLayouts, setCurrentLayouts] = useState<LayoutConfig>({});
+  const [temporaryLayouts, setTemporaryLayouts] = useState<LayoutConfig>({});
   
   // Reference to the GridLayout component
   const gridLayoutRef = useRef<any>(null);
 
   // Load saved layouts on component mount
   useEffect(() => {
-    const layouts = getLayouts();
-    setCurrentLayouts(layouts);
-    // Initialize temporary layouts with the same data
-    setTemporaryLayouts(JSON.parse(JSON.stringify(layouts)));
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const layouts = await getLayouts();
+        setCurrentLayouts(layouts);
+        // Initialize temporary layouts with the same data
+        setTemporaryLayouts(JSON.parse(JSON.stringify(layouts)));
+      } catch (error) {
+        console.error('Error loading layouts:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
   }, []);
 
   const handleEditClick = () => {
@@ -40,97 +49,73 @@ export default function HomePage() {
     setIsEditMode(true);
   };
 
-  const handleSaveClick = () => {
-    // Save layouts to localStorage
-    saveLayouts(currentLayouts);
-    
-    // Also save to GridLayout component's internal state
-    if (gridLayoutRef.current && gridLayoutRef.current.saveCurrentState) {
-      gridLayoutRef.current.saveCurrentState();
+  const handleSaveClick = async () => {
+    // Save layouts to DynamoDB
+    try {
+      // First, save via the grid layout component to ensure all state is properly updated
+      if (gridLayoutRef.current && gridLayoutRef.current.saveCurrentState) {
+        await gridLayoutRef.current.saveCurrentState();
+        
+        // Also ensure we save the layouts we have in our state
+        await saveLayouts(currentLayouts);
+        
+        // Update temporaryLayouts to match current layouts after successful save
+        setTemporaryLayouts(JSON.parse(JSON.stringify(currentLayouts)));
+        setIsEditMode(false);
+      } else {
+        console.error('GridLayout reference not available');
+        throw new Error('GridLayout reference not available');
+      }
+    } catch (error) {
+      console.error('Error saving layouts:', error);
+      // Display error message to user
+      alert('Could not save changes. Please try again.');
     }
-    
-    // Update the temporary layouts to match the current ones
-    setTemporaryLayouts(JSON.parse(JSON.stringify(currentLayouts)));
-    setIsEditMode(false);
   };
 
   const handleCancelClick = () => {
-    // Restore the original layouts when canceling
+    // Restore from temporary layouts when cancelling edit
     setCurrentLayouts(JSON.parse(JSON.stringify(temporaryLayouts)));
+    setIsEditMode(false);
     
-    // Also reset the GridLayout component's internal state
-    if (gridLayoutRef.current && gridLayoutRef.current.resetToOriginal) {
+    // Tell the GridLayout to reset
+    if (gridLayoutRef.current) {
       gridLayoutRef.current.resetToOriginal();
     }
-    
-    setIsEditMode(false);
   };
 
-  const handleLayoutChange = (layouts: { [key: string]: Layout[] }) => {
-    if (isEditMode) {
-      // Only update current layouts if in edit mode
-      setCurrentLayouts(layouts);
-    }
-  };
-
-  const handleAddBox = () => {
-    setShowNameDialog(true);
-    // Focus the input after the dialog is shown
-    setTimeout(() => {
-      if (nameInputRef.current) {
-        nameInputRef.current.focus();
-      }
-    }, 100);
-  };
-
-  const handleNameSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newBoxName.trim()) {
-      // Pass the name to the GridLayout component
-      if (gridLayoutRef.current && gridLayoutRef.current.addNewBox) {
-        gridLayoutRef.current.addNewBox(newBoxName);
-      }
-      setNewBoxName('');
-      setShowNameDialog(false);
-    }
-  };
-
-  const handleNameCancel = () => {
-    setNewBoxName('');
-    setShowNameDialog(false);
+  const handleLayoutChange = (layouts: LayoutConfig) => {
+    // Update current layouts when layout changes
+    setCurrentLayouts(layouts);
   };
 
   const navigateToListView = () => {
+    // Navigate to the list view for mobile
     router.push('/list');
   };
 
+  // Prevent scrolling when in edit mode
+  useEffect(() => {
+    if (isEditMode) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isEditMode]);
+
   return (
     <div className="container mx-auto px-4 py-8 relative">
-      {/* Edit mode controls */}
-      {isEditMode && (
-        <div className="flex justify-end mb-4 space-x-2">
-          <button 
-            onClick={handleSaveClick}
-            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center"
-            title="Save Layout"
-          >
-            <FaSave className="mr-1" />
-            <span>Save</span>
-          </button>
-          <button 
-            onClick={handleCancelClick}
-            className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md shadow-sm border border-red-800 transition-colors flex items-center"
-            title="Cancel Editing"
-          >
-            <FaTimesCircle className="mr-1" />
-            <span>Cancel</span>
-          </button>
-        </div>
-      )}
-
-      {/* Edit button and List View button (only shown when not in edit mode) */}
-      {!isEditMode && (
-        <div className="flex justify-end mb-4 space-x-2">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">
+          Your Home Layout
+        </h1>
+        
+        <div className="flex space-x-2">
+          {/* List View button - shown regardless of edit mode */}
           <button 
             onClick={navigateToListView}
             className="bg-dark-blue hover:bg-dark-blue-light text-white p-2 rounded-md shadow-sm border border-primary-700 action-button"
@@ -138,67 +123,61 @@ export default function HomePage() {
           >
             <FaList className="text-xl" />
           </button>
-          <button 
-            onClick={handleEditClick}
-            className="bg-dark-blue hover:bg-dark-blue-light text-white p-2 rounded-md shadow-sm border border-primary-700 action-button"
-            title="Edit Layout"
-          >
-            <FaEdit className="text-xl" />
-          </button>
+          
+          {/* Edit Controls */}
+          {!isEditMode ? (
+            <button
+              onClick={handleEditClick}
+              className="bg-dark-blue hover:bg-dark-blue-light text-white p-2 rounded-md shadow-sm border border-primary-700 action-button"
+              title="Edit Layout"
+            >
+              <FaEdit className="text-xl" />
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={handleSaveClick}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center"
+                title="Save Layout"
+              >
+                <FaSave className="mr-1" />
+                <span>Save</span>
+              </button>
+              <button
+                onClick={handleCancelClick}
+                className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md shadow-sm border border-red-800 transition-colors flex items-center"
+                title="Cancel Editing"
+              >
+                <FaTimesCircle className="mr-1" />
+                <span>Cancel</span>
+              </button>
+            </>
+          )}
         </div>
-      )}
-
-      {/* Grid Layout */}
-      <div className="mb-8">
-        <GridLayout 
-          ref={gridLayoutRef}
-          isEditMode={isEditMode} 
-          onLayoutChange={handleLayoutChange} 
-          onAddBox={handleAddBox}
-        />
       </div>
       
+      {/* Edit Mode Notice */}
       {isEditMode && (
-        <div className="text-center text-gray-300 mb-8">
-          <p>Tip: Drag boxes to move them, grab the corner/edge to resize, or use the remove button to delete</p>
+        <div className="bg-blue-100 dark:bg-blue-900 border border-blue-300 dark:border-blue-700 rounded p-4 mb-6">
+          <p className="text-blue-800 dark:text-blue-300 text-center">
+            <span className="font-semibold">Edit Mode</span> - Drag boxes to rearrange your home layout.
+          </p>
         </div>
       )}
-
-      {/* Name Dialog */}
-      {showNameDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-dark-blue border-2 border-primary-700 rounded-lg shadow-lg p-6 w-96">
-            <h3 className="text-xl font-bold text-white mb-4">Add New Box</h3>
-            <form onSubmit={handleNameSubmit}>
-              <div className="mb-4">
-                <label htmlFor="boxName" className="block text-gray-300 mb-2">Box Name</label>
-                <input
-                  ref={nameInputRef}
-                  type="text"
-                  id="boxName"
-                  value={newBoxName}
-                  onChange={(e) => setNewBoxName(e.target.value)}
-                  className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
-                  placeholder="Enter a name for the box"
-                />
-              </div>
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={handleNameCancel}
-                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md shadow-sm border border-red-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors"
-                >
-                  Add
-                </button>
-              </div>
-            </form>
-          </div>
+      
+      {/* Grid Layout Component */}
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+        </div>
+      ) : (
+        <div className="mb-8">
+          <GridLayout
+            ref={gridLayoutRef}
+            isEditMode={isEditMode}
+            onLayoutChange={handleLayoutChange}
+            onResetToOriginal={() => setCurrentLayouts(JSON.parse(JSON.stringify(temporaryLayouts)))}
+          />
         </div>
       )}
     </div>

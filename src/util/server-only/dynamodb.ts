@@ -52,7 +52,7 @@ const getTableName = (table: string) => `${tablePrefix}-${table}`;
  */
 export async function getItem<T>(tableName: string, key: Record<string, any>): Promise<T | null> {
   const fullTableName = getTableName(tableName);
-  console.log(`[${new Date().toISOString()}] 📥 DYNAMODB: Getting item from table "${fullTableName}" with key:`, key);
+  console.log(`[${new Date().toISOString()}] 📥 DYNAMODB: Getting item from table "${fullTableName}" with key:`, JSON.stringify(key));
   
   try {
     const command = new GetCommand({
@@ -65,7 +65,7 @@ export async function getItem<T>(tableName: string, key: Record<string, any>): P
     if (response.Item) {
       console.log(`[${new Date().toISOString()}] ✅ DYNAMODB: Successfully retrieved item from "${fullTableName}"`);
     } else {
-      console.log(`[${new Date().toISOString()}] ⚠️ DYNAMODB: Item not found in "${fullTableName}" with key:`, key);
+      console.log(`[${new Date().toISOString()}] ⚠️ DYNAMODB: Item not found in "${fullTableName}" with key:`, JSON.stringify(key));
     }
     
     return (response.Item as T) || null;
@@ -81,7 +81,12 @@ export async function getItem<T>(tableName: string, key: Record<string, any>): P
 export async function putItem(tableName: string, item: Record<string, any>): Promise<void> {
   const fullTableName = getTableName(tableName);
   console.log(`[${new Date().toISOString()}] 📤 DYNAMODB: Putting item into table "${fullTableName}":`, 
-    item.id ? `ID: ${item.id}` : 'No ID provided');
+    item.id ? `ID: ${item.id}, Keys: ${Object.keys(item).join(', ')}` : 'No ID provided');
+  
+  // Check if item has an id property
+  if (!item.id) {
+    console.warn(`[${new Date().toISOString()}] ⚠️ DYNAMODB: Warning: Item has no 'id' property, which might cause issues with DynamoDB`);
+  }
   
   try {
     const command = new PutCommand({

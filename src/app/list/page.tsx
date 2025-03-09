@@ -11,6 +11,7 @@ export default function ListPage() {
   const router = useRouter();
   const [areas, setAreas] = useState<AreaItem[]>([]);
   const [filteredAreas, setFilteredAreas] = useState<AreaItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
@@ -38,14 +39,27 @@ export default function ListPage() {
 
   // Load data
   useEffect(() => {
-    const loadedAreas = getAreas();
-    setAreas(loadedAreas);
-    setFilteredAreas(loadedAreas);
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const loadedAreas = await getAreas();
+        setAreas(loadedAreas);
+        setFilteredAreas(loadedAreas);
+      } catch (error) {
+        console.error('Error loading areas:', error);
+        setAreas([]);
+        setFilteredAreas([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
   }, []);
 
   // Filter areas when search term changes
   useEffect(() => {
-    if (areas.length > 0) {
+    if (areas && areas.length > 0) {
       if (searchTerm) {
         const filtered = areas.filter((area: AreaItem) => 
           area.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -79,45 +93,55 @@ export default function ListPage() {
   };
 
   // Save edited item
-  const handleSaveEdit = (id: string) => {
+  const handleSaveEdit = async (id: string) => {
     const trimmedName = editName.trim();
     if (!trimmedName) {
       alert("Box name cannot be empty");
       return;
     }
     
-    // Update the area
-    const updatedArea = updateArea(id, {
-      name: trimmedName,
-      color: editColor,
-      iconName: editIcon
-    });
-    
-    if (updatedArea) {
-      // Refresh the data
-      const updatedAreas = getAreas();
-      setAreas(updatedAreas);
-      setFilteredAreas(updatedAreas);
+    try {
+      // Update the area
+      const updatedArea = await updateArea(id, {
+        name: trimmedName,
+        color: editColor,
+        iconName: editIcon
+      });
       
-      // Reset edit state
-      setEditingItem(null);
-      setEditName('');
-      setEditColor('');
-      setEditIcon('');
+      if (updatedArea) {
+        // Refresh the data
+        const updatedAreas = await getAreas();
+        setAreas(updatedAreas);
+        setFilteredAreas(updatedAreas);
+        
+        // Reset edit state
+        setEditingItem(null);
+        setEditName('');
+        setEditColor('');
+        setEditIcon('');
+      }
+    } catch (error) {
+      console.error('Error saving area:', error);
+      alert('Failed to save changes. Please try again.');
     }
   };
 
   // Remove an item
-  const handleRemoveClick = (id: string) => {
+  const handleRemoveClick = async (id: string) => {
     if (confirm('Are you sure you want to remove this box?')) {
-      // Remove the area and its layout entries
-      const success = removeArea(id);
-      
-      if (success) {
-        // Refresh the data
-        const updatedAreas = getAreas();
-        setAreas(updatedAreas);
-        setFilteredAreas(updatedAreas);
+      try {
+        // Remove the area and its layout entries
+        const success = await removeArea(id);
+        
+        if (success) {
+          // Refresh the data
+          const updatedAreas = await getAreas();
+          setAreas(updatedAreas);
+          setFilteredAreas(updatedAreas);
+        }
+      } catch (error) {
+        console.error('Error removing area:', error);
+        alert('Failed to remove the box. Please try again.');
       }
     }
   };
@@ -146,7 +170,7 @@ export default function ListPage() {
   };
 
   // Save new box
-  const handleSaveCreate = () => {
+  const handleSaveCreate = async () => {
     const trimmedName = newBoxName.trim();
     const trimmedIdentifier = newBoxIdentifier.trim();
     
@@ -160,26 +184,32 @@ export default function ListPage() {
       return;
     }
     
-    // Check for duplicate identifiers
-    if (isAreaIdentifierDuplicate(trimmedIdentifier)) {
-      alert("An item with this identifier already exists. Please use a different identifier.");
-      return;
+    try {
+      // Check for duplicate identifiers
+      const isDuplicate = await isAreaIdentifierDuplicate(trimmedIdentifier);
+      if (isDuplicate) {
+        alert("An item with this identifier already exists. Please use a different identifier.");
+        return;
+      }
+      
+      // Add the new area
+      await addArea({
+        name: trimmedName,
+        identifier: trimmedIdentifier,
+        iconName: newBoxIcon,
+        color: newBoxColor
+      });
+      
+      // Refresh the data
+      const updatedAreas = await getAreas();
+      setAreas(updatedAreas);
+      setFilteredAreas(updatedAreas);
+      
+      setShowCreateDialog(false);
+    } catch (error) {
+      console.error('Error creating box:', error);
+      alert('Failed to create the box. Please try again.');
     }
-    
-    // Add the new area
-    const newArea = addArea({
-      name: trimmedName,
-      identifier: trimmedIdentifier,
-      iconName: newBoxIcon,
-      color: newBoxColor
-    });
-    
-    // Refresh the data
-    const updatedAreas = getAreas();
-    setAreas(updatedAreas);
-    setFilteredAreas(updatedAreas);
-    
-    setShowCreateDialog(false);
   };
 
   return (
@@ -215,14 +245,18 @@ export default function ListPage() {
         />
       </div>
 
-      {filteredAreas.length === 0 ? (
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+        </div>
+      ) : filteredAreas.length === 0 ? (
         <div className="text-center py-10">
           <p className="text-gray-300 text-lg">No boxes found. Create some boxes on the dashboard first.</p>
         </div>
       ) : (
         <div className="bg-dark-blue rounded-lg shadow-lg overflow-hidden max-h-[70vh] overflow-y-auto">
           <ul className="divide-y divide-primary-700">
-            {filteredAreas.map(item => {
+            {Array.isArray(filteredAreas) && filteredAreas.map(item => {
               const Icon = getIconComponent(item.iconName);
               
               return (

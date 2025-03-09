@@ -8,7 +8,7 @@ import { IconType } from 'react-icons';
 import { FaKitchenSet, FaToilet, FaBed, FaCouch, FaUtensils, FaShower, 
          FaTrash, FaCar, FaGamepad, FaLaptop, FaBook, FaWrench, 
          FaWineBottle, FaShirt, FaGuitar, FaUmbrellaBeach, FaBox, FaGripLines } from 'react-icons/fa6';
-import { AreaItem, loadSavedData, saveAreas, saveLayouts } from '../util/storage';
+import { AreaItem, loadSavedData, saveAreas, saveLayouts, LayoutConfig } from '../util/storage';
 
 // Enable responsiveness
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -50,29 +50,28 @@ const allColors = [
   'bg-orange-500', 'bg-cyan-500'
 ];
 
-// Helper to get icon name from component for storage
+// Helper to get the name of an icon component for serialization
 const getIconName = (iconComponent: IconType): string => {
-  const iconEntries = Object.entries(iconMap);
-  for (const [name, component] of iconEntries) {
+  for (const [name, component] of Object.entries(iconMap)) {
     if (component === iconComponent) {
       return name;
     }
   }
-  return 'FaBox'; // Default fallback
+  return 'FaBox'; // Default fallback icon name
 };
 
 // Initial areas
-const initialAreas = [
-  { id: 'kitchen', name: 'Kitchen', iconName: 'FaKitchenSet', color: 'bg-blue-500' },
-  { id: 'bathroom', name: 'Bathroom', iconName: 'FaToilet', color: 'bg-green-500' },
-  { id: 'bedroom', name: 'Bedroom', iconName: 'FaBed', color: 'bg-purple-500' },
-  { id: 'living-room', name: 'Living Room', iconName: 'FaCouch', color: 'bg-yellow-500' },
-  { id: 'dining', name: 'Dining', iconName: 'FaUtensils', color: 'bg-red-500' },
-  { id: 'shower', name: 'Shower', iconName: 'FaShower', color: 'bg-indigo-500' },
+const initialAreas: AreaItem[] = [
+  { id: 'kitchen', name: 'Kitchen', identifier: 'KITCHEN-001', iconName: 'FaKitchenSet', color: 'bg-blue-500' },
+  { id: 'bathroom', name: 'Bathroom', identifier: 'BATH-001', iconName: 'FaToilet', color: 'bg-green-500' },
+  { id: 'bedroom', name: 'Bedroom', identifier: 'BED-001', iconName: 'FaBed', color: 'bg-purple-500' },
+  { id: 'living-room', name: 'Living Room', identifier: 'LIVING-001', iconName: 'FaCouch', color: 'bg-yellow-500' },
+  { id: 'dining', name: 'Dining', identifier: 'DINING-001', iconName: 'FaUtensils', color: 'bg-red-500' },
+  { id: 'shower', name: 'Shower', identifier: 'SHOWER-001', iconName: 'FaShower', color: 'bg-indigo-500' },
 ];
 
 // Define the default layouts for different breakpoints
-const defaultLayouts = {
+const defaultLayouts: LayoutConfig = {
   lg: [
     { i: 'kitchen', x: 0, y: 0, w: 6, h: 2 },
     { i: 'bathroom', x: 6, y: 0, w: 3, h: 1 },
@@ -99,58 +98,85 @@ const defaultLayouts = {
   ],
 };
 
+// Define the data structure type
+interface SavedData {
+  areas: AreaItem[];
+  layouts: LayoutConfig;
+}
+
 interface GridLayoutProps {
   isEditMode: boolean;
-  onLayoutChange: (layouts: { [key: string]: Layout[] }) => void;
+  onLayoutChange: (layouts: LayoutConfig) => void;
   onAddBox?: () => void;
   onResetToOriginal?: () => void;
 }
 
 // Export with forwardRef to allow parent components to call methods
 const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChange, onAddBox, onResetToOriginal }, ref) => {
-  // State for saved data (persisted in localStorage)
-  const [savedData, setSavedData] = useState(loadSavedData());
+  // State for saved data (persisted in DynamoDB)
+  const [savedData, setSavedData] = useState<SavedData>({
+    areas: initialAreas,
+    layouts: defaultLayouts
+  });
+  const [isLoading, setIsLoading] = useState(true);
   
   // State for current editing data (temporary until saved)
-  const [editingAreas, setEditingAreas] = useState<AreaItem[]>(savedData.areas);
-  const [editingLayouts, setEditingLayouts] = useState(savedData.layouts);
+  const [editingAreas, setEditingAreas] = useState<AreaItem[]>(initialAreas);
+  const [editingLayouts, setEditingLayouts] = useState<LayoutConfig>(defaultLayouts);
 
   // Load saved data on component mount
   useEffect(() => {
-    const data = loadSavedData();
-    setSavedData(data);
-    setEditingAreas(data.areas);
-    setEditingLayouts(data.layouts);
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const data = await loadSavedData();
+        setSavedData(data);
+        setEditingAreas(data.areas);
+        setEditingLayouts(data.layouts);
+      } catch (error) {
+        console.error("Error loading saved data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
   }, []);
 
   // Reset to original saved state when edit mode changes
   useEffect(() => {
-    if (isEditMode) {
+    if (isEditMode && !isLoading) {
       // When entering edit mode, create a copy of the saved data
       setEditingAreas([...savedData.areas]);
       setEditingLayouts(JSON.parse(JSON.stringify(savedData.layouts)));
     }
-  }, [isEditMode, savedData]);
+  }, [isEditMode, savedData, isLoading]);
 
-  // Method to save current state to localStorage
-  const saveCurrentState = () => {
-    const newSavedData = {
-      layouts: editingLayouts,
-      areas: editingAreas
-    };
-    
-    saveLayouts(editingLayouts);
-    saveAreas(editingAreas);
-    
-    setSavedData(newSavedData);
-    
-    return newSavedData;
+  // Method to save current state to DynamoDB
+  const saveCurrentState = async () => {
+    try {
+      // Save to DynamoDB
+      await saveLayouts(editingLayouts);
+      await saveAreas(editingAreas);
+      
+      // Update local state
+      const newSavedData: SavedData = {
+        layouts: editingLayouts,
+        areas: editingAreas
+      };
+      
+      setSavedData(newSavedData);
+      return newSavedData;
+    } catch (error) {
+      console.error("Error saving data:", error);
+      throw error;
+    }
   };
 
   // Method to reset to original state
   const resetToOriginal = () => {
     const originalAreas = [...savedData.areas];
-    const originalLayouts = JSON.parse(JSON.stringify(savedData.layouts));
+    const originalLayouts = JSON.parse(JSON.stringify(savedData.layouts)) as LayoutConfig;
     
     setEditingAreas(originalAreas);
     setEditingLayouts(originalLayouts);
@@ -182,7 +208,7 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
     }
   };
 
-  const handleLayoutChange = (layout: Layout[], layouts: { [key: string]: Layout[] }) => {
+  const handleLayoutChange = (layout: Layout[], layouts: LayoutConfig) => {
     setEditingLayouts(layouts);
     onLayoutChange(layouts);
   };
@@ -195,36 +221,60 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
     setEditingAreas(updatedAreas);
     
     // Remove from layouts
-    const updatedLayouts: { [key: string]: Layout[] } = {};
-    Object.keys(editingLayouts).forEach(breakpoint => {
-      updatedLayouts[breakpoint] = editingLayouts[breakpoint].filter((item: Layout) => item.i !== id);
+    const updatedLayouts: LayoutConfig = { ...editingLayouts };
+    
+    Object.keys(updatedLayouts).forEach(breakpoint => {
+      if (breakpoint in updatedLayouts) {
+        updatedLayouts[breakpoint] = updatedLayouts[breakpoint].filter((item: Layout) => item.i !== id);
+      }
     });
     
     setEditingLayouts(updatedLayouts);
     onLayoutChange(updatedLayouts);
   };
 
-  // Function to add a new box with a custom name
-  const addNewBoxWithName = (name: string) => {
-    // Generate a unique identifier
-    const sanitizedName = name.toUpperCase().replace(/\s+/g, '-');
-    const randomId = Math.floor(Math.random() * 9000) + 1000;
-    const uniqueIdentifier = `${sanitizedName.substring(0, 10)}-${randomId}`;
+  // Define random icon and color for new boxes
+  const getRandomIcon = (): IconType => {
+    const randomIndex = Math.floor(Math.random() * allIcons.length);
+    return allIcons[randomIndex];
+  };
+
+  const getRandomColor = (): string => {
+    const randomIndex = Math.floor(Math.random() * allColors.length);
+    return allColors[randomIndex];
+  };
+
+  const generateUniqueIdentifier = (name: string): string => {
+    // Convert name to uppercase, replace spaces with dashes
+    const baseIdentifier = name.toUpperCase().replace(/\s+/g, '-');
     
-    // Generate a unique ID for the layout
+    // Add a timestamp to make it unique
+    const uniqueIdentifier = `${baseIdentifier}-${Date.now() % 10000}`;
+    
+    // Limit length to 15 characters
+    return uniqueIdentifier.substring(0, 15);
+  };
+
+  const addNewBoxWithName = async (name: string) => {
+    if (!name || name.trim() === '') {
+      console.warn('Cannot add box with empty name');
+      return null;
+    }
+    
+    const randomIcon = getRandomIcon();
+    const randomColor = getRandomColor();
+    
+    // Create a new area with unique ID
     const newId = `box-${Date.now()}`;
     
-    // Get a random icon and color
-    const randomIcon = allIcons[Math.floor(Math.random() * allIcons.length)];
-    const randomIconName = getIconName(randomIcon);
-    const randomColor = allColors[Math.floor(Math.random() * allColors.length)];
+    // Create a unique identifier based on the name
+    const identifier = generateUniqueIdentifier(name);
     
-    // Create the new area
     const newArea: AreaItem = {
       id: newId,
-      name: name,
-      identifier: uniqueIdentifier,
-      iconName: randomIconName,
+      name: name.trim(),
+      identifier,
+      iconName: getIconName(randomIcon),
       color: randomColor
     };
     
@@ -232,41 +282,63 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
     const updatedAreas = [...editingAreas, newArea];
     setEditingAreas(updatedAreas);
     
-    // Add to layouts
-    const updatedLayouts = { ...editingLayouts };
+    // Add to all layouts
+    const updatedLayouts: LayoutConfig = { ...editingLayouts };
+    
     Object.keys(updatedLayouts).forEach(breakpoint => {
-      // Find a good position (at the end)
-      const maxY = updatedLayouts[breakpoint].reduce(
-        (max: number, item: Layout) => Math.max(max, item.y + item.h), 
-        0
-      );
-      
-      // Add new item to layout with size 1x1
-      const newItem = { 
-        i: newId, 
-        x: 0, 
-        y: maxY, 
-        w: 1, 
-        h: 1 
-      };
-      
-      updatedLayouts[breakpoint] = [...updatedLayouts[breakpoint], newItem];
+      if (breakpoint in updatedLayouts) {
+        // Find a good position (at the end)
+        const maxY = updatedLayouts[breakpoint].reduce(
+          (max: number, item: Layout) => Math.max(max, item.y + item.h),
+          0
+        );
+        
+        // Add new item to layout with size based on breakpoint
+        let w = 3;
+        let h = 1;
+        
+        if (breakpoint === 'lg') {
+          w = 3;
+          h = 2;
+        } else if (breakpoint === 'md') {
+          w = 3;
+          h = 1;
+        } else {
+          w = 3;
+          h = 1;
+        }
+        
+        const newItem = {
+          i: newId,
+          x: 0,
+          y: maxY,
+          w,
+          h
+        };
+        
+        updatedLayouts[breakpoint] = [...updatedLayouts[breakpoint], newItem];
+      }
     });
     
     setEditingLayouts(updatedLayouts);
     onLayoutChange(updatedLayouts);
+    
+    return newArea;
   };
 
-  // Call the parent's onAddBox if provided
   const handleAddBox = () => {
     if (onAddBox) {
       onAddBox();
     }
   };
 
-  // Use the editing state when in edit mode, otherwise use the saved state
+  // Display appropriate data based on edit mode
   const displayAreas = isEditMode ? editingAreas : savedData.areas;
   const displayLayouts = isEditMode ? editingLayouts : savedData.layouts;
+
+  if (isLoading) {
+    return <div className="p-4 text-center">Loading layout...</div>;
+  }
 
   return (
     <div className="p-4">
