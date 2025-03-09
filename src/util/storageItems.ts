@@ -4,8 +4,13 @@ import {
   deleteStorageItem,
   getLowStockItems as getServerLowStockItems,
   getItemsByExpiryDateRange as getServerItemsByExpiryDateRange,
-  StorageItem
+  StorageItem as ServerStorageItem
 } from './server-only/storageStorage';
+
+// Define our StorageItem type with additional UI-specific fields
+export interface StorageItem extends ServerStorageItem {
+  iconName?: string;  // Make iconName optional but available for UI
+}
 
 // Helper to get the current user ID (reusing the same approach as in storage.ts)
 const getCurrentUserId = (): string => {
@@ -98,6 +103,7 @@ export const createNewItem = (name: string = ''): StorageItem => {
     unit: '',
     notes: '',
     category: '',
+    iconName: 'FaBox',
     updatedAt: new Date().toISOString(),
     createdAt: new Date().toISOString()
   };

@@ -54,12 +54,6 @@ interface HomeData {
   layouts: LayoutConfig;
 }
 
-// DynamoDB key structure
-interface StorageKey {
-  userId: string;
-  type: string;
-}
-
 // Helper to ensure all areas have identifiers
 const migrateAreasWithIdentifiers = (areas: AreaItem[]): AreaItem[] => {
   return areas.map((area, index) => {
@@ -78,16 +72,16 @@ const migrateAreasWithIdentifiers = (areas: AreaItem[]): AreaItem[] => {
  */
 async function getHomeData(userId: string): Promise<HomeData> {
   try {
-    // Simplified key structure - just using the id as the primary key
+    // Use a simple, meaningful key for a single-user application
     const key = { 
-      id: `user-${userId}-home` 
+      id: 'home-layout'
     };
     
     const data = await getItem<{ id: string, homeData: HomeData }>(HOME_TABLE, key);
     
     if (!data || !data.homeData) {
-      // If no data found, create default data for this user
-      console.log(`Creating default home data for user ${userId}`);
+      // If no data found, create default data
+      console.log('Creating default home data');
       const defaultHomeData: HomeData = {
         areas: migrateAreasWithIdentifiers(defaultAreas),
         layouts: defaultLayouts
@@ -124,7 +118,8 @@ async function getHomeData(userId: string): Promise<HomeData> {
  */
 export async function getAreas(userId: string): Promise<AreaItem[]> {
   try {
-    const homeData = await getHomeData(userId);
+    // userId is ignored in a single-user application
+    const homeData = await getHomeData('single-user');
     return homeData.areas;
   } catch (error) {
     console.error('Error retrieving areas from database:', error);
@@ -137,7 +132,8 @@ export async function getAreas(userId: string): Promise<AreaItem[]> {
  */
 export async function getLayouts(userId: string): Promise<LayoutConfig> {
   try {
-    const homeData = await getHomeData(userId);
+    // userId is ignored in a single-user application
+    const homeData = await getHomeData('single-user');
     return homeData.layouts;
   } catch (error) {
     console.error('Error retrieving layouts from database:', error);
@@ -150,10 +146,9 @@ export async function getLayouts(userId: string): Promise<LayoutConfig> {
  */
 async function saveHomeData(userId: string, homeData: HomeData): Promise<void> {
   try {
-    // Simplified item structure with only the necessary fields
+    // Use a simple, meaningful item structure
     const item = {
-      id: `user-${userId}-home`,
-      userId, // Keep this for filtering/querying but not as part of the primary key
+      id: 'home-layout', // Simple key for single user
       homeData, // Store all data in a single field
       updatedAt: new Date().toISOString()
     };
@@ -170,8 +165,9 @@ async function saveHomeData(userId: string, homeData: HomeData): Promise<void> {
  */
 export async function saveAreas(userId: string, areas: AreaItem[]): Promise<void> {
   try {
+    // userId is ignored in a single-user application
     // First get the current home data to preserve layouts
-    const homeData = await getHomeData(userId);
+    const homeData = await getHomeData('single-user');
     
     // Update only the areas
     const updatedHomeData: HomeData = {
@@ -180,7 +176,7 @@ export async function saveAreas(userId: string, areas: AreaItem[]): Promise<void
     };
     
     // Save the updated home data
-    await saveHomeData(userId, updatedHomeData);
+    await saveHomeData('single-user', updatedHomeData);
   } catch (error) {
     console.error('Error saving areas to database:', error);
     throw error;
@@ -192,8 +188,9 @@ export async function saveAreas(userId: string, areas: AreaItem[]): Promise<void
  */
 export async function saveLayouts(userId: string, layouts: LayoutConfig): Promise<void> {
   try {
+    // userId is ignored in a single-user application
     // First get the current home data to preserve areas
-    const homeData = await getHomeData(userId);
+    const homeData = await getHomeData('single-user');
     
     // Update only the layouts
     const updatedHomeData: HomeData = {
@@ -202,7 +199,7 @@ export async function saveLayouts(userId: string, layouts: LayoutConfig): Promis
     };
     
     // Save the updated home data
-    await saveHomeData(userId, updatedHomeData);
+    await saveHomeData('single-user', updatedHomeData);
   } catch (error) {
     console.error('Error saving layouts to database:', error);
     throw error;
@@ -213,7 +210,8 @@ export async function saveLayouts(userId: string, layouts: LayoutConfig): Promis
  * Function to get areas by identifier
  */
 export async function getAreaByIdentifier(userId: string, identifier: string): Promise<AreaItem | undefined> {
-  const areas = await getAreas(userId);
+  // userId is ignored in a single-user application
+  const areas = await getAreas('single-user');
   return areas.find(area => 
     area.identifier && identifier &&
     area.identifier.toLowerCase() === identifier.toLowerCase()
@@ -224,7 +222,8 @@ export async function getAreaByIdentifier(userId: string, identifier: string): P
  * Check if an identifier is already in use by another area
  */
 export async function isAreaIdentifierDuplicate(userId: string, identifier: string, excludeId?: string): Promise<boolean> {
-  const areas = await getAreas(userId);
+  // userId is ignored in a single-user application
+  const areas = await getAreas('single-user');
   return areas.some(area => 
     area.id !== excludeId && 
     area.identifier && identifier &&
@@ -236,6 +235,7 @@ export async function isAreaIdentifierDuplicate(userId: string, identifier: stri
  * Get a specific area by ID
  */
 export async function getAreaById(userId: string, id: string): Promise<AreaItem | undefined> {
-  const areas = await getAreas(userId);
+  // userId is ignored in a single-user application
+  const areas = await getAreas('single-user');
   return areas.find(area => area.id === id);
 } 

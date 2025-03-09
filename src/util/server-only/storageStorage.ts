@@ -11,10 +11,9 @@ import {
 // Storage table name
 const STORAGE_TABLE = 'storage';
 
-// DynamoDB key structure
+// DynamoDB key structure - simpler for single user
 interface StorageKey {
-  userId: string;
-  areaIdentifier: string; // Composite key with userId to partition by area
+  areaIdentifier: string; // The area this item belongs to
 }
 
 // Define the item storage interface
@@ -38,19 +37,19 @@ export interface StorageItem {
  */
 export async function getAreaItems(userId: string, areaIdentifier: string): Promise<StorageItem[]> {
   try {
-    // Query items for this specific area
-    const items = await queryItems<StorageItem & StorageKey>(
+    // Instead of using a query, use a scan with a filter for the areaIdentifier
+    const items = await scanItems<StorageItem & { id: string, areaIdentifier: string }>(
       STORAGE_TABLE,
-      'userId = :userId AND areaIdentifier = :areaId',
+      'areaIdentifier = :areaId',
       {
-        ':userId': userId,
         ':areaId': areaIdentifier
       }
     );
     
     // Map to remove the key attributes
     return items.map(item => ({
-      id: item.id,
+      id: item.id.includes(`${areaIdentifier}-`) ? 
+        item.id.substring(item.id.indexOf('-') + 1) : item.id, // Extract the original item ID
       name: item.name,
       quantity: item.quantity,
       minQuantity: item.minQuantity,
@@ -93,17 +92,24 @@ export async function saveItem(
       item.id = `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     }
     
-    // Create the full item with key attributes
+    // Original item ID for returning to the client
+    const originalItemId = item.id;
+    
+    // Create the full item with required DynamoDB attributes
     const fullItem = {
       ...item,
-      userId,
       areaIdentifier,
-      // Generate a composite ID for DynamoDB if needed
-      dbId: `${userId}-${areaIdentifier}-${item.id}`
+      // Create a composite ID for the DynamoDB primary key
+      id: `${areaIdentifier}-${originalItemId}`
     };
     
     await putItem(STORAGE_TABLE, fullItem);
-    return item;
+    
+    // Return the original item (without the composite key)
+    return {
+      ...item,
+      id: originalItemId
+    };
   } catch (error) {
     console.error(`Error saving item in area ${areaIdentifier}:`, error);
     throw error;
@@ -119,11 +125,12 @@ export async function deleteStorageItem(
   itemId: string
 ): Promise<boolean> {
   try {
-    await deleteItem(STORAGE_TABLE, { 
-      id: `${userId}-${areaIdentifier}-${itemId}`, // Use composite ID
-      userId, 
-      areaIdentifier
-    });
+    // The DynamoDB key is just the ID - which is the composite of area and item ID
+    const dbKey = { 
+      id: `${areaIdentifier}-${itemId}`
+    };
+    
+    await deleteItem(STORAGE_TABLE, dbKey);
     return true;
   } catch (error) {
     console.error(`Error deleting item ${itemId} from area ${areaIdentifier}:`, error);
@@ -136,30 +143,26 @@ export async function deleteStorageItem(
  */
 export async function getLowStockItems(userId: string): Promise<(StorageItem & { areaIdentifier: string })[]> {
   try {
-    // We need to scan the table here as we're querying across partitions
-    const items = await scanItems<StorageItem & StorageKey & { dbId: string }>(
+    // Scan for items where quantity <= minQuantity
+    const items = await scanItems<StorageItem & { areaIdentifier: string }>(
       STORAGE_TABLE,
-      'userId = :userId AND quantity <= minQuantity',
+      'quantity <= minQuantity AND minQuantity > :zero',
       {
-        ':userId': userId
+        ':zero': 0
       }
     );
     
-    return items.map(item => ({
-      id: item.id,
-      areaIdentifier: item.areaIdentifier,
-      name: item.name,
-      quantity: item.quantity,
-      minQuantity: item.minQuantity,
-      unit: item.unit,
-      notes: item.notes,
-      category: item.category,
-      expiryDate: item.expiryDate,
-      location: item.location,
-      imageUrl: item.imageUrl,
-      updatedAt: item.updatedAt,
-      createdAt: item.createdAt
-    }));
+    // Process the items to extract the original ID from the composite key
+    return items.map(item => {
+      // Extract the original item ID from the composite key if needed
+      const id = item.id.includes('-') ? 
+        item.id.substring(item.id.indexOf('-') + 1) : item.id;
+      
+      return {
+        ...item,
+        id
+      };
+    });
   } catch (error) {
     console.error('Error getting low stock items:', error);
     return [];
@@ -175,31 +178,26 @@ export async function getItemsByExpiryDateRange(
   endDate: string
 ): Promise<(StorageItem & { areaIdentifier: string })[]> {
   try {
-    const items = await scanItems<StorageItem & StorageKey & { dbId: string }>(
+    const items = await scanItems<StorageItem & { areaIdentifier: string }>(
       STORAGE_TABLE,
-      'userId = :userId AND expiryDate BETWEEN :start AND :end',
+      'expiryDate BETWEEN :start AND :end',
       {
-        ':userId': userId,
         ':start': startDate,
         ':end': endDate
       }
     );
     
-    return items.map(item => ({
-      id: item.id,
-      areaIdentifier: item.areaIdentifier,
-      name: item.name,
-      quantity: item.quantity,
-      minQuantity: item.minQuantity,
-      unit: item.unit,
-      notes: item.notes,
-      category: item.category,
-      expiryDate: item.expiryDate,
-      location: item.location,
-      imageUrl: item.imageUrl,
-      updatedAt: item.updatedAt,
-      createdAt: item.createdAt
-    }));
+    // Process the items to extract the original ID from the composite key
+    return items.map(item => {
+      // Extract the original item ID from the composite key if needed
+      const id = item.id.includes('-') ? 
+        item.id.substring(item.id.indexOf('-') + 1) : item.id;
+      
+      return {
+        ...item,
+        id
+      };
+    });
   } catch (error) {
     console.error('Error getting items by expiry date range:', error);
     return [];

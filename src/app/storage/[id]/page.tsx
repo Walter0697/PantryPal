@@ -3,8 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot } from 'react-icons/fa';
-import { getAreaById } from '../../../util/storageActions';
-import { getItemsByStorageId, StorageItem, updateItem, addItem } from '../../../util/itemActions';
+import { getAreaByIdentifier } from '../../../util/server-only/gridStorage';
+import { 
+  getAreaItems, 
+  saveItem, 
+  deleteItem,
+  StorageItem,
+  createNewItem
+} from '../../../util/storageItems';
 import * as Icons from 'react-icons/fa6';
 import { IconType } from 'react-icons';
 
@@ -60,7 +66,7 @@ export default function StoragePage({ params }: PageParams) {
   
   // Safely unwrap params for current and future Next.js versions
   const unwrappedParams = useParams(params);
-  const id = unwrappedParams.id;
+  const areaIdentifier = unwrappedParams.id;
   
   const [boxName, setBoxName] = useState('');
   const [boxIdentifier, setBoxIdentifier] = useState('');
@@ -76,7 +82,10 @@ export default function StoragePage({ params }: PageParams) {
   const [editName, setEditName] = useState('');
   const [editIconName, setEditIconName] = useState('');
   const [editQuantity, setEditQuantity] = useState(0);
-  const [editVolume, setEditVolume] = useState<string | undefined>(undefined);
+  const [editMinQuantity, setEditMinQuantity] = useState(0);
+  const [editUnit, setEditUnit] = useState<string | undefined>(undefined);
+  const [editNotes, setEditNotes] = useState<string | undefined>(undefined);
+  const [editCategory, setEditCategory] = useState<string | undefined>(undefined);
   const [editError, setEditError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   
@@ -85,7 +94,10 @@ export default function StoragePage({ params }: PageParams) {
   const [newItemName, setNewItemName] = useState('');
   const [newItemIconName, setNewItemIconName] = useState('FaBox');
   const [newItemQuantity, setNewItemQuantity] = useState(1);
-  const [newItemVolume, setNewItemVolume] = useState<string | undefined>(undefined);
+  const [newItemMinQuantity, setNewItemMinQuantity] = useState(0);
+  const [newItemUnit, setNewItemUnit] = useState<string | undefined>(undefined);
+  const [newItemNotes, setNewItemNotes] = useState<string | undefined>(undefined);
+  const [newItemCategory, setNewItemCategory] = useState<string | undefined>(undefined);
   const [addError, setAddError] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   
@@ -94,22 +106,22 @@ export default function StoragePage({ params }: PageParams) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Get box details
-        const area = await getAreaById(id);
+        // Get box details using the area identifier - no userId needed as we're a single-user app
+        const area = await getAreaByIdentifier('single-user', areaIdentifier);
         if (area) {
           setBoxName(area.name);
           setBoxIdentifier(area.identifier);
         } else {
-          console.warn(`Box with ID ${id} not found`);
+          console.warn(`Box with identifier ${areaIdentifier} not found`);
         }
         
-        // Get items for this storage location
-        const storageItems = await getItemsByStorageId(id);
+        // Get items for this storage location - areaIdentifier is the key in our database
+        const storageItems = await getAreaItems(areaIdentifier);
         setItems(storageItems);
         setFilteredItems(storageItems);
         
-        // Log items to console as requested
-        console.log('Items for storage', id, ':', storageItems);
+        // Log items to console
+        console.log('Items for storage', areaIdentifier, ':', storageItems);
       } catch (error) {
         console.error('Error fetching storage data:', error);
       } finally {
@@ -118,7 +130,7 @@ export default function StoragePage({ params }: PageParams) {
     };
     
     fetchData();
-  }, [id]);
+  }, [areaIdentifier]);
   
   // Filter items when search term changes
   useEffect(() => {
@@ -145,8 +157,11 @@ export default function StoragePage({ params }: PageParams) {
       // Calculate new quantity (prevent going below 0)
       const newQuantity = Math.max(0, item.quantity + change);
       
-      // Update the item on the server
-      const updatedItem = await updateItem(id, itemId, { quantity: newQuantity });
+      // Update the item in the database
+      const updatedItem = await saveItem(areaIdentifier, { 
+        ...item, 
+        quantity: newQuantity 
+      });
       
       if (updatedItem) {
         // Update local state
@@ -175,9 +190,12 @@ export default function StoragePage({ params }: PageParams) {
   const handleEditClick = (item: StorageItem) => {
     setEditingItem(item);
     setEditName(item.name);
-    setEditIconName(item.iconName);
+    setEditIconName(item.iconName || 'FaBox');
     setEditQuantity(item.quantity);
-    setEditVolume(item.volume);
+    setEditMinQuantity(item.minQuantity || 0);
+    setEditUnit(item.unit);
+    setEditNotes(item.notes);
+    setEditCategory(item.category);
     setEditError('');
     setShowEditDialog(true);
   };
@@ -206,20 +224,21 @@ export default function StoragePage({ params }: PageParams) {
     setIsSaving(true);
     
     try {
-      // Create updates object
-      const updates: Partial<Omit<StorageItem, 'id'>> = {
+      // Create updated item
+      const updatedItemData: StorageItem = {
+        ...editingItem,
         name: editName.trim(),
         iconName: editIconName,
-        quantity: editQuantity
+        quantity: editQuantity,
+        minQuantity: editMinQuantity,
+        unit: editUnit,
+        notes: editNotes,
+        category: editCategory,
+        updatedAt: new Date().toISOString()
       };
       
-      // Only include volume if it's defined
-      if (editVolume !== undefined) {
-        updates.volume = editVolume;
-      }
-      
-      // Update the item
-      const updatedItem = await updateItem(id, editingItem.id, updates);
+      // Update the item in the database
+      const updatedItem = await saveItem(areaIdentifier, updatedItemData);
       
       if (updatedItem) {
         // Update local state
@@ -250,12 +269,15 @@ export default function StoragePage({ params }: PageParams) {
     setNewItemName('');
     setNewItemIconName('FaBox');
     setNewItemQuantity(1);
-    setNewItemVolume(undefined);
+    setNewItemMinQuantity(0);
+    setNewItemUnit('');
+    setNewItemNotes('');
+    setNewItemCategory('');
     setAddError('');
     setShowAddDialog(true);
   };
   
-  // Handler to add a new item
+  // Handle adding a new item
   const handleAddItemSave = async () => {
     // Validate inputs
     if (!newItemName.trim()) {
@@ -277,23 +299,21 @@ export default function StoragePage({ params }: PageParams) {
     
     try {
       // Create new item object
-      const newItemData: Omit<StorageItem, 'id'> = {
-        name: newItemName.trim(),
-        iconName: newItemIconName,
-        quantity: newItemQuantity
-      };
+      const newItem = createNewItem(newItemName.trim());
+      newItem.iconName = newItemIconName;
+      newItem.quantity = newItemQuantity;
+      newItem.minQuantity = newItemMinQuantity;
       
-      // Only include volume if it's defined
-      if (newItemVolume !== undefined) {
-        newItemData.volume = newItemVolume;
-      }
+      if (newItemUnit) newItem.unit = newItemUnit;
+      if (newItemNotes) newItem.notes = newItemNotes;
+      if (newItemCategory) newItem.category = newItemCategory;
       
-      // Add the item
-      const addedItem = await addItem(id, newItemData);
+      // Save the item to the database
+      const savedItem = await saveItem(areaIdentifier, newItem);
       
-      if (addedItem) {
+      if (savedItem) {
         // Update local state
-        const updatedItems = [...items, addedItem];
+        const updatedItems = [...items, savedItem];
         setItems(updatedItems);
         setFilteredItems(updatedItems);
         
@@ -308,252 +328,249 @@ export default function StoragePage({ params }: PageParams) {
     }
   };
   
+  // Navigate back to home
   const handleBackClick = () => {
     router.push('/home');
   };
 
+  // Render the page
   return (
-    <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">Storage Details</h1>
+    <div className="container mx-auto px-4 py-8">
+      {/* Page Header with Back Button */}
+      <div className="mb-6 flex justify-between items-center">
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={handleBackClick}
+            className="bg-dark-blue hover:bg-dark-blue-light text-white p-2 rounded-md shadow-sm border border-primary-700"
+            aria-label="Back to Home"
+          >
+            <FaArrowLeft className="text-xl" />
+          </button>
+          
+          <h1 className="text-2xl font-bold text-white">
+            {boxName || 'Storage'}
+          </h1>
+          
+          {boxIdentifier && (
+            <span className="text-gray-400 text-sm bg-dark-blue px-2 py-1 rounded-md">
+              {boxIdentifier}
+            </span>
+          )}
+        </div>
+        
+        {/* Add Item Button */}
         <button
-          onClick={handleBackClick}
-          className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white hover:text-secondary-500 px-3 py-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer action-button"
+          onClick={handleAddItemClick}
+          className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center"
         >
-          <FaArrowLeft className="mr-2" />
-          <span>Back to Dashboard</span>
+          <FaPlus className="mr-2" />
+          <span>Add Item</span>
         </button>
       </div>
       
-      <div className="bg-dark-blue rounded-lg shadow-lg p-6 flex-grow">
-        <h2 className="text-xl font-semibold text-white mb-4">{boxName || 'Unknown Box'}</h2>
-        <p className="text-gray-300 mb-6">Box Identifier: {boxIdentifier}</p>
-        
-        {/* Search */}
-        <div className="mb-6 relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FaSearch className="text-gray-200" />
-          </div>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search items..."
-            className="w-full pl-10 bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white placeholder-gray-300"
-          />
+      {/* Search Box */}
+      <div className="mb-6 relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <FaSearch className="text-gray-400" />
         </div>
-        
-        {/* Loading State */}
-        {loading ? (
-          <div className="text-center py-10">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-secondary-500 mb-2"></div>
-            <p className="text-gray-100">Loading items...</p>
-          </div>
-        ) : (
-          <>
-            {/* Item List */}
-            {filteredItems.length === 0 ? (
-              <div className="text-center py-8">
-                {items.length === 0 ? (
-                  <EmptyState onAddClick={handleAddItemClick} />
-                ) : (
-                  <p className="text-gray-100 text-lg font-medium">
-                    No items match your search.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-md border border-primary-700">
-                <ul className="divide-y divide-primary-700">
-                  {filteredItems.map(item => {
-                    const Icon = getIconComponent(item.iconName);
-                    const isUpdating = updating === item.id;
-                    
-                    return (
-                      <li key={item.id} className="p-4 hover:bg-dark-blue-light transition-colors">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center space-x-3">
-                            <div className={`bg-blue-500 p-2 rounded-md`}>
-                              <Icon className="text-white text-xl" />
-                            </div>
-                            <div>
-                              <h3 className="text-white font-medium">{item.name}</h3>
-                              {item.volume && (
-                                <p className="text-gray-200 text-sm">Volume: {item.volume}</p>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center space-x-2">
-                            {/* Edit button */}
-                            <button
-                              onClick={() => handleEditClick(item)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded-md w-8 h-8 flex items-center justify-center transition-colors"
-                              disabled={isUpdating}
-                              title="Edit item"
-                            >
-                              <FaPencilAlt />
-                            </button>
-                            
-                            {/* Quantity controls */}
-                            <button 
-                              onClick={() => handleQuantityChange(item.id, -1)}
-                              className={`bg-red-600 hover:bg-red-700 text-white p-1 rounded-md w-8 h-8 flex items-center justify-center transition-colors ${isUpdating ? 'opacity-50' : ''}`}
-                              disabled={item.quantity <= 0 || isUpdating}
-                              title="Decrease quantity"
-                            >
-                              {isUpdating ? (
-                                <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></div>
-                              ) : (
-                                <FaMinus />
-                              )}
-                            </button>
-                            <span className="text-white font-medium text-lg w-8 text-center">
-                              {item.quantity}
-                            </span>
-                            <button 
-                              onClick={() => handleQuantityChange(item.id, 1)}
-                              className={`bg-green-600 hover:bg-green-700 text-white p-1 rounded-md w-8 h-8 flex items-center justify-center transition-colors ${isUpdating ? 'opacity-50' : ''}`}
-                              disabled={isUpdating}
-                              title="Increase quantity"
-                            >
-                              {isUpdating ? (
-                                <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></div>
-                              ) : (
-                                <FaPlus />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-            
-            {/* Summary */}
-            <div className="mt-6 p-4 bg-dark-blue-light rounded-md">
-              <p className="text-white font-semibold">
-                {filteredItems.length > 0 
-                  ? `Showing ${filteredItems.length} of ${items.length} items.` 
-                  : items.length > 0 ? 'No matching items found.' : 'No items in this storage.'}
-              </p>
-              <p className="text-gray-200 mt-2 font-medium">
-                Total quantity: {filteredItems.reduce((sum, item) => sum + item.quantity, 0)} items
-              </p>
-            </div>
-          </>
-        )}
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search items..."
+          className="w-full pl-10 pr-4 py-2 bg-dark-blue-light border border-primary-700 rounded-md text-white"
+        />
       </div>
       
-      {/* Footer - Joke about AI in bottom right */}
-      <footer className="mt-8 py-4 border-t border-primary-700 relative">
-        <div className="absolute bottom-4 right-4">
-          <p className="text-black font-semibold text-right flex items-center justify-end">
-            <FaRobot className="ml-1 mr-2 text-primary-600" />
-            This website was entirely generated by AI
-          </p>
+      {/* Content Area */}
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
-      </footer>
+      ) : filteredItems.length === 0 ? (
+        <EmptyState onAddClick={handleAddItemClick} />
+      ) : (
+        <div className="bg-dark-blue rounded-lg shadow-lg overflow-hidden">
+          <ul className="divide-y divide-gray-800">
+            {filteredItems.map(item => (
+              <li key={item.id} className="p-4 hover:bg-dark-blue-light transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {item.iconName && (
+                      <div className="text-2xl text-gray-300">
+                        {React.createElement(getIconComponent(item.iconName))}
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-semibold text-lg text-white">{item.name}</h3>
+                      <div className="text-sm text-gray-400 flex items-center space-x-2">
+                        <span>Quantity: {item.quantity}{item.unit ? ` ${item.unit}` : ''}</span>
+                        {item.minQuantity !== undefined && item.minQuantity > 0 && (
+                          <span className="bg-gray-800 px-1.5 py-0.5 rounded text-xs">
+                            Min: {item.minQuantity}
+                          </span>
+                        )}
+                        {item.category && (
+                          <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs">
+                            {item.category}
+                          </span>
+                        )}
+                      </div>
+                      {item.notes && (
+                        <p className="text-sm text-gray-500 mt-1">{item.notes}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    {/* Edit button */}
+                    <button
+                      onClick={() => handleEditClick(item)}
+                      className="p-2 text-gray-400 hover:text-white rounded-full hover:bg-gray-800 transition-colors"
+                      title="Edit Item"
+                    >
+                      <FaPencilAlt />
+                    </button>
+                    
+                    {/* Quantity adjustment buttons */}
+                    <div className="flex items-center bg-dark-blue-light rounded-md overflow-hidden">
+                      <button
+                        disabled={updating === item.id}
+                        onClick={() => handleQuantityChange(item.id, -1)}
+                        className="p-2 text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                        title="Decrease Quantity"
+                      >
+                        <FaMinus />
+                      </button>
+                      
+                      <span className="w-10 text-center font-mono text-white">
+                        {updating === item.id ? '...' : item.quantity}
+                      </span>
+                      
+                      <button
+                        disabled={updating === item.id}
+                        onClick={() => handleQuantityChange(item.id, 1)}
+                        className="p-2 text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                        title="Increase Quantity"
+                      >
+                        <FaPlus />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       
       {/* Edit Item Dialog */}
-      {showEditDialog && editingItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-dark-blue bg-opacity-90 border-2 border-primary-700 rounded-lg shadow-lg p-6 w-[500px] max-w-[90vw]">
-            <h3 className="text-xl font-bold text-white mb-4">Edit Item</h3>
-            
-            {editError && (
-              <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-md text-white">
-                {editError}
-              </div>
-            )}
-            
-            <div className="flex flex-col space-y-4">
-              {/* Name field */}
-              <div>
-                <label className="block text-gray-200 mb-1">Name</label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white placeholder-gray-400"
-                  placeholder="Item name"
-                />
-              </div>
+      {showEditDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-blue-medium border border-primary-700 rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-white mb-4">Edit Item</h2>
               
-              {/* Quantity field */}
-              <div>
-                <label className="block text-gray-200 mb-1">Quantity</label>
-                <input
-                  type="number"
-                  value={editQuantity}
-                  onChange={(e) => setEditQuantity(Math.max(0, parseInt(e.target.value) || 0))}
-                  min="0"
-                  className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white"
-                />
-              </div>
+              {editError && (
+                <div className="bg-red-900 text-white p-3 rounded-md mb-4">
+                  {editError}
+                </div>
+              )}
               
-              {/* Volume field (optional) - now accepting any string */}
-              <div>
-                <label className="block text-gray-200 mb-1">
-                  Volume <span className="text-gray-400 text-sm">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={editVolume === undefined ? '' : editVolume}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setEditVolume(val === '' ? undefined : val);
-                  }}
-                  className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white"
-                  placeholder="e.g. 250ml, 2L, half-full, etc."
-                />
-              </div>
-              
-              {/* Icon selection */}
-              <div>
-                <label className="block text-gray-200 mb-1">Icon</label>
-                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 max-h-40 overflow-y-auto bg-dark-blue-light bg-opacity-70 p-2 rounded-md">
-                  {availableIcons.map(iconName => {
-                    const IconComponent = getIconComponent(iconName);
-                    return (
-                      <button
-                        key={iconName}
-                        type="button"
-                        className={`p-2 rounded-md ${iconName === editIconName ? 'bg-primary-700 ring-2 ring-white' : 'bg-dark-blue hover:bg-dark-blue-light'} transition-colors cursor-pointer`}
-                        onClick={() => setEditIconName(iconName)}
-                        title={iconName.replace('Fa', '')}
-                      >
-                        <IconComponent className="text-white text-xl mx-auto" />
-                      </button>
-                    );
-                  })}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-gray-300 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-gray-300 mb-1">Icon</label>
+                  <select
+                    value={editIconName}
+                    onChange={(e) => setEditIconName(e.target.value)}
+                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                  >
+                    {availableIcons.map(icon => (
+                      <option key={icon} value={icon}>{icon}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 mb-1">Quantity</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editQuantity}
+                      onChange={(e) => setEditQuantity(parseInt(e.target.value) || 0)}
+                      className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-300 mb-1">Min Quantity</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editMinQuantity}
+                      onChange={(e) => setEditMinQuantity(parseInt(e.target.value) || 0)}
+                      className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-gray-300 mb-1">Unit (optional)</label>
+                  <input
+                    type="text"
+                    value={editUnit || ''}
+                    onChange={(e) => setEditUnit(e.target.value || undefined)}
+                    placeholder="e.g. kg, lbs, pcs"
+                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-gray-300 mb-1">Category (optional)</label>
+                  <input
+                    type="text"
+                    value={editCategory || ''}
+                    onChange={(e) => setEditCategory(e.target.value || undefined)}
+                    placeholder="e.g. Produce, Dairy, Cleaning"
+                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-gray-300 mb-1">Notes (optional)</label>
+                  <textarea
+                    value={editNotes || ''}
+                    onChange={(e) => setEditNotes(e.target.value || undefined)}
+                    rows={3}
+                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                  />
                 </div>
               </div>
               
-              {/* Action buttons */}
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="mt-6 flex justify-end space-x-3">
                 <button
                   onClick={() => setShowEditDialog(false)}
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors"
-                  disabled={isSaving}
+                  className="px-4 py-2 bg-dark-blue-light hover:bg-dark-blue text-white rounded-md transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleEditSave}
-                  className={`bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md transition-colors flex items-center ${isSaving ? 'opacity-70' : ''}`}
                   disabled={isSaving}
+                  className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors disabled:opacity-50"
                 >
-                  {isSaving ? (
-                    <>
-                      <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent mr-2"></div>
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <span>Save Changes</span>
-                  )}
+                  {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </div>
@@ -563,123 +580,117 @@ export default function StoragePage({ params }: PageParams) {
       
       {/* Add Item Dialog */}
       {showAddDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-dark-blue bg-opacity-90 border-2 border-primary-700 rounded-lg shadow-lg p-6 w-[500px] max-w-[90vw]">
-            <h3 className="text-xl font-bold text-white mb-4">Add New Item</h3>
-            
-            {addError && (
-              <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-md text-white">
-                {addError}
-              </div>
-            )}
-            
-            <div className="flex flex-col space-y-4">
-              {/* Name field */}
-              <div>
-                <label className="block text-gray-200 mb-1">Name</label>
-                <input
-                  type="text"
-                  value={newItemName}
-                  onChange={(e) => setNewItemName(e.target.value)}
-                  className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white placeholder-gray-400"
-                  placeholder="Item name"
-                />
-              </div>
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-blue-medium border border-primary-700 rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-white mb-4">Add New Item</h2>
               
-              {/* Quantity field */}
-              <div>
-                <label className="block text-gray-200 mb-1">Quantity</label>
-                <input
-                  type="number"
-                  value={newItemQuantity}
-                  onChange={(e) => setNewItemQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  min="1"
-                  className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white"
-                />
-              </div>
+              {addError && (
+                <div className="bg-red-900 text-white p-3 rounded-md mb-4">
+                  {addError}
+                </div>
+              )}
               
-              {/* Volume field (optional) - now accepting any string */}
-              <div>
-                <label className="block text-gray-200 mb-1">
-                  Volume <span className="text-gray-400 text-sm">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={newItemVolume === undefined ? '' : newItemVolume}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setNewItemVolume(val === '' ? undefined : val);
-                  }}
-                  className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white"
-                  placeholder="e.g. 250ml, 2L, half-full, etc."
-                />
-              </div>
-              
-              {/* Icon selection */}
-              <div>
-                <label className="block text-gray-200 mb-1">Icon</label>
-                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 max-h-40 overflow-y-auto bg-dark-blue-light bg-opacity-70 p-2 rounded-md">
-                  {availableIcons.map(iconName => {
-                    const IconComponent = getIconComponent(iconName);
-                    return (
-                      <button
-                        key={iconName}
-                        type="button"
-                        className={`p-2 rounded-md ${iconName === newItemIconName ? 'bg-primary-700 ring-2 ring-white' : 'bg-dark-blue hover:bg-dark-blue-light'} transition-colors cursor-pointer`}
-                        onClick={() => setNewItemIconName(iconName)}
-                        title={iconName.replace('Fa', '')}
-                      >
-                        <IconComponent className="text-white text-xl mx-auto" />
-                      </button>
-                    );
-                  })}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-gray-300 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={newItemName}
+                    onChange={(e) => setNewItemName(e.target.value)}
+                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-gray-300 mb-1">Icon</label>
+                  <select
+                    value={newItemIconName}
+                    onChange={(e) => setNewItemIconName(e.target.value)}
+                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                  >
+                    {availableIcons.map(icon => (
+                      <option key={icon} value={icon}>{icon}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 mb-1">Quantity</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newItemQuantity}
+                      onChange={(e) => setNewItemQuantity(parseInt(e.target.value) || 0)}
+                      className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-300 mb-1">Min Quantity</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newItemMinQuantity}
+                      onChange={(e) => setNewItemMinQuantity(parseInt(e.target.value) || 0)}
+                      className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-gray-300 mb-1">Unit (optional)</label>
+                  <input
+                    type="text"
+                    value={newItemUnit || ''}
+                    onChange={(e) => setNewItemUnit(e.target.value || undefined)}
+                    placeholder="e.g. kg, lbs, pcs"
+                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-gray-300 mb-1">Category (optional)</label>
+                  <input
+                    type="text"
+                    value={newItemCategory || ''}
+                    onChange={(e) => setNewItemCategory(e.target.value || undefined)}
+                    placeholder="e.g. Produce, Dairy, Cleaning"
+                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-gray-300 mb-1">Notes (optional)</label>
+                  <textarea
+                    value={newItemNotes || ''}
+                    onChange={(e) => setNewItemNotes(e.target.value || undefined)}
+                    rows={3}
+                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+                  />
                 </div>
               </div>
               
-              {/* Action buttons */}
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="mt-6 flex justify-end space-x-3">
                 <button
                   onClick={() => setShowAddDialog(false)}
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors"
-                  disabled={isAdding}
+                  className="px-4 py-2 bg-dark-blue-light hover:bg-dark-blue text-white rounded-md transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddItemSave}
-                  className={`bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md transition-colors flex items-center ${isAdding ? 'opacity-70' : ''}`}
                   disabled={isAdding}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50"
                 >
-                  {isAdding ? (
-                    <>
-                      <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent mr-2"></div>
-                      <span>Adding...</span>
-                    </>
-                  ) : (
-                    <span>Add Item</span>
-                  )}
+                  {isAdding ? 'Adding...' : 'Add Item'}
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
-      
-      {/* Add a floating action button for adding items when there are already some items */}
-      {items.length > 0 && !loading && (
-        <button
-          onClick={handleAddItemClick}
-          className="fixed bottom-8 right-8 bg-green-600 hover:bg-green-700 text-white p-4 rounded-full shadow-lg transition-all transform hover:scale-110 cursor-pointer"
-          title="Add New Item"
-        >
-          <FaPlus className="text-xl" />
-        </button>
-      )}
     </div>
   );
-}
-
-// Add a comment about the params handling that meets Next.js requirements
-// While direct access to params.id is supported in the current version of Next.js,
-// in future versions we'll need to unwrap params with React.use() before accessing properties.
-// This will be updated when upgrading to the newer Next.js version that requires it. 
+} 
