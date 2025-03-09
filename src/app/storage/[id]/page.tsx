@@ -13,6 +13,7 @@ import {
 } from '../../../util/storageItems';
 import * as Icons from 'react-icons/fa6';
 import { IconType } from 'react-icons';
+import IconSelect from '../../../components/IconSelect';
 
 type PageParams = {
   params: {
@@ -511,15 +512,10 @@ export default function StoragePage({ params }: PageParams) {
                 
                 <div>
                   <label className="block text-gray-300 mb-1">Icon</label>
-                  <select
+                  <IconSelect
                     value={editIconName}
-                    onChange={(e) => setEditIconName(e.target.value)}
-                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
-                  >
-                    {availableIcons.map(icon => (
-                      <option key={icon} value={icon}>{icon}</option>
-                    ))}
-                  </select>
+                    onChange={setEditIconName}
+                  />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -625,15 +621,10 @@ export default function StoragePage({ params }: PageParams) {
                 
                 <div>
                   <label className="block text-gray-300 mb-1">Icon</label>
-                  <select
+                  <IconSelect
                     value={newItemIconName}
-                    onChange={(e) => setNewItemIconName(e.target.value)}
-                    className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
-                  >
-                    {availableIcons.map(icon => (
-                      <option key={icon} value={icon}>{icon}</option>
-                    ))}
-                  </select>
+                    onChange={setNewItemIconName}
+                  />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">

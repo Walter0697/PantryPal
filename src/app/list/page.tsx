@@ -6,6 +6,7 @@ import { FaEdit, FaTrash, FaArrowLeft, FaSave, FaTimesCircle, FaPlus } from 'rea
 import { IconType } from 'react-icons';
 import * as Icons from 'react-icons/fa6';
 import { AreaItem, getAreas, updateArea, removeArea, addArea, isAreaNameDuplicate, isAreaIdentifierDuplicate } from '../../util/storage';
+import IconSelect from '../../components/IconSelect';
 
 export default function ListPage() {
   const router = useRouter();
@@ -300,22 +301,10 @@ export default function ListPage() {
                       
                       <div>
                         <label className="block text-gray-300 mb-1">Icon</label>
-                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-40 overflow-y-auto bg-dark-blue-light bg-opacity-70 p-2 rounded-md">
-                          {popularIcons.map(iconName => {
-                            const IconComponent = getIconComponent(iconName);
-                            return (
-                              <button
-                                key={iconName}
-                                type="button"
-                                className={`p-2 rounded-md ${editIcon === iconName ? 'bg-primary-700 ring-2 ring-white' : 'bg-dark-blue hover:bg-dark-blue-light'} transition-colors cursor-pointer`}
-                                onClick={() => setEditIcon(iconName)}
-                                aria-label={`Select ${iconName} icon`}
-                              >
-                                <IconComponent className="text-white text-xl mx-auto" />
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <IconSelect
+                          value={editIcon}
+                          onChange={setEditIcon}
+                        />
                       </div>
                       
                       <div className="flex justify-end space-x-2 mt-4">
@@ -417,22 +406,10 @@ export default function ListPage() {
               
               <div>
                 <label className="block text-gray-300 mb-1">Icon</label>
-                <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-40 overflow-y-auto bg-dark-blue-light bg-opacity-70 p-2 rounded-md">
-                  {popularIcons.map(iconName => {
-                    const IconComponent = getIconComponent(iconName);
-                    return (
-                      <button
-                        key={iconName}
-                        type="button"
-                        className={`p-2 rounded-md ${newBoxIcon === iconName ? 'bg-primary-700 ring-2 ring-white' : 'bg-dark-blue hover:bg-dark-blue-light'} transition-colors cursor-pointer`}
-                        onClick={() => setNewBoxIcon(iconName)}
-                        aria-label={`Select ${iconName} icon`}
-                      >
-                        <IconComponent className="text-white text-xl mx-auto" />
-                      </button>
-                    );
-                  })}
-                </div>
+                <IconSelect
+                  value={newBoxIcon}
+                  onChange={setNewBoxIcon}
+                />
               </div>
               
               <div className="flex justify-end space-x-2 mt-4">
