@@ -21,9 +21,11 @@ jobs:
     - name: Install dependencies
       run: npm ci
       
-    - name: Build
+    - name: Build as Static Export
       run: npm run build
       env:
+        # Force static export mode to avoid Node.js built-in module errors
+        NEXT_STATIC_EXPORT: 'true'
         # Add minimal env vars needed for build
         AWS_REGION: 'us-east-1'
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || 'dummy-key-for-build' }}
@@ -34,87 +36,16 @@ jobs:
         NEXT_PUBLIC_CLOUDFLARE_PAGES: 'true'
         NODE_ENV: 'production'
 
-    - name: Create Worker and Server Scripts
+    - name: Prepare static build artifacts
       run: |
-        # Create _worker.js
-        mkdir -p .next/standalone
-        echo 'export default {
-          async fetch(request, env) {
-            try {
-              const nextServer = await import("./server.js");
-              return await nextServer.default.fetch(request, env);
-            } catch (error) {
-              return new Response(`Server Error: ${error.message}`, {
-                status: 500,
-                headers: { "Content-Type": "text/plain" }
-              });
-            }
-          }
-        };' > _worker.js
-        
-        # Create server.js
-        echo 'import { createServer } from "node:http";
-        import { Server } from "next/dist/server/next-server.js";
-
-        const nextServer = new Server({
-          hostname: "localhost",
-          port: Number(process.env.PORT) || 8788,
-          dir: ".",
-          dev: false,
-          customServer: false,
-          conf: {
-            distDir: ".next",
-            output: "standalone",
-          },
-        });
-
-        const handler = nextServer.getRequestHandler();
-
-        export default {
-          fetch: async (request, env) => {
-            const url = new URL(request.url);
-            return await handler(request, url);
-          }
-        };
-
-        if (typeof process !== "undefined") {
-          const port = Number(process.env.PORT) || 8788;
-          createServer((req, res) => {
-            const url = new URL(req.url || "/", `http://${req.headers.host}`);
-            handler(req, res, url);
-          }).listen(port, () => {
-            console.log(`> Ready on http://localhost:${port}`);
-          });
-        }' > server.js
-
-    - name: Prepare build artifacts
-      run: |
-        # Ensure standalone output directory exists
-        if [ -d ".next/standalone" ]; then
-          echo "Preparing build artifacts for R2 upload"
-          
-          # Copy static and public assets to standalone directory
-          if [ -d ".next/static" ]; then
-            mkdir -p .next/standalone/.next/static
-            cp -R .next/static .next/standalone/.next/
-          fi
-          
-          if [ -d "public" ]; then
-            cp -R public .next/standalone/
-          fi
-          
-          # Remove any large files that might exceed Cloudflare's limits
-          find .next/standalone -name "*.pack" -delete
-          find .next/standalone -name "*.map" -delete
-          
-          # Copy the worker and server scripts
-          cp _worker.js .next/standalone/
-          cp server.js .next/standalone/
+        # Check for out directory (static export output)
+        if [ -d "out" ]; then
+          echo "Static export found in 'out' directory"
           
           # Create artifact archive
-          tar -czf build-artifact.tar.gz -C .next/standalone .
+          tar -czf static-build.tar.gz -C out .
         else
-          echo "Error: Standalone directory not found. Build may have failed."
+          echo "Error: 'out' directory not found. Static export build may have failed."
           exit 1
         fi
 
@@ -130,14 +61,14 @@ jobs:
     - name: Upload to R2
       run: |
         TIMESTAMP=$(date +%Y%m%d%H%M%S)
-        ARTIFACT_PATH="builds/stock-recorder-${TIMESTAMP}.tar.gz"
+        ARTIFACT_PATH="builds/stock-recorder-static-${TIMESTAMP}.tar.gz"
         echo "ARTIFACT_PATH=${ARTIFACT_PATH}" >> $GITHUB_ENV
         
         # Enable verbose logging for debugging
         export WRANGLER_LOG=debug
         
         # Upload to R2 bucket
-        wrangler r2 object put ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file build-artifact.tar.gz
+        wrangler r2 object put ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file static-build.tar.gz
       env:
         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -145,20 +76,15 @@ jobs:
     - name: Extract R2 Artifact for Deployment
       run: |
         # Create a temporary directory for extraction
-        mkdir -p r2-deployment
+        mkdir -p static-deployment
         
         # Download the artifact from R2
-        wrangler r2 object get ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file r2-artifact.tar.gz
+        wrangler r2 object get ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file static-artifact.tar.gz
         
         # Extract the artifact
-        tar -xzf r2-artifact.tar.gz -C r2-deployment
+        tar -xzf static-artifact.tar.gz -C static-deployment
         
-        # Verify _worker.js exists
-        if [ ! -f "r2-deployment/_worker.js" ]; then
-          echo "Warning: _worker.js not found in extracted files. This may cause 404 errors."
-        fi
-        
-        echo "Extracted R2 artifact for deployment"
+        echo "Extracted static artifact for deployment"
       env:
         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -169,13 +95,13 @@ jobs:
         export WRANGLER_LOG=debug
         
         # Deploy using the extracted files from R2
-        wrangler pages deployment create ./r2-deployment \
+        wrangler pages deployment create ./static-deployment \
           --project-name=pantrypal \
           --branch=main \
           --commit-hash=${{ github.sha }} \
           --commit-message="${{ github.event.head_commit.message || 'Manual deployment' }}"
         
-        echo "Deployment initiated using artifact from R2"
+        echo "Static deployment initiated using artifact from R2"
       env:
         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }} 
