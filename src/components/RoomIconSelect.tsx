@@ -18,27 +18,36 @@ const getIconComponent = (iconName: string): IconType => {
 // Create the options array for the select with human-readable labels
 const createIconOptions = (iconNames: string[]): IconOption[] => {
   const iconLabels: Record<string, string> = {
-    'FaBox': 'Box / Container',
+    // Living Areas
     'FaKitchenSet': 'Kitchen',
-    'FaToilet': 'Bathroom',
-    'FaBed': 'Bedroom',
     'FaCouch': 'Living Room',
-    'FaUtensils': 'Cutlery',
-    'FaShower': 'Shower',
-    'FaCar': 'Garage / Car',
-    'FaGamepad': 'Gaming',
-    'FaLaptop': 'Electronics',
-    'FaBook': 'Books',
-    'FaWrench': 'Tools',
-    'FaWineBottle': 'Drinks',
-    'FaShirt': 'Clothing',
-    'FaGuitar': 'Music',
-    'FaUmbrellaBeach': 'Outdoor',
-    'FaToothbrush': 'Hygiene',
-    'FaPumpSoap': 'Cleaning',
-    'FaBowlFood': 'Food',
-    'FaMugHot': 'Hot Drinks',
-    'FaBottleWater': 'Water'
+    'FaBed': 'Bedroom',
+    'FaUtensils': 'Dining Room',
+    'FaChair': 'Study Room',
+    'FaHouse': 'Family Room',
+    'FaTv': 'Entertainment Room',
+    
+    // Bathrooms and Utilities
+    'FaToilet': 'Bathroom',
+    'FaShower': 'Shower Room',
+    'FaShirt': 'Laundry Room',
+    'FaWater': 'Utility Room',
+    
+    // Storage Areas
+    'FaBox': 'Storage Room',
+    'FaBoxesStacked': 'Store Room',
+    'FaWarehouse': 'Warehouse',
+    'FaCar': 'Garage',
+    
+    // Work and Special Purpose
+    'FaLaptop': 'Home Office',
+    'FaDumbbell': 'Gym Room',
+    'FaGamepad': 'Game Room',
+    'FaWrench': 'Workshop',
+    'FaBook': 'Library',
+    'FaUmbrellaBeach': 'Patio/Deck',
+    'FaStairs': 'Stairway',
+    'FaDoorOpen': 'Entrance/Foyer'
   };
 
   return iconNames.map(name => ({
@@ -50,10 +59,18 @@ const createIconOptions = (iconNames: string[]): IconOption[] => {
 
 // Available icons for selection
 const availableIcons = [
-  'FaBox', 'FaKitchenSet', 'FaToilet', 'FaBed', 'FaCouch', 'FaUtensils', 
-  'FaShower', 'FaCar', 'FaGamepad', 'FaLaptop', 'FaBook', 'FaWrench',
-  'FaWineBottle', 'FaShirt', 'FaGuitar', 'FaUmbrellaBeach', 'FaToothbrush',
-  'FaPumpSoap', 'FaBowlFood', 'FaMugHot', 'FaBottleWater'
+  // Living Areas
+  'FaKitchenSet', 'FaCouch', 'FaBed', 'FaUtensils', 'FaChair', 'FaHouse', 'FaTv',
+  
+  // Bathrooms and Utilities
+  'FaToilet', 'FaShower', 'FaShirt', 'FaWater',
+  
+  // Storage Areas
+  'FaBox', 'FaBoxesStacked', 'FaWarehouse', 'FaCar',
+  
+  // Work and Special Purpose
+  'FaLaptop', 'FaDumbbell', 'FaGamepad', 'FaWrench', 'FaBook', 'FaUmbrellaBeach',
+  'FaStairs', 'FaDoorOpen'
 ];
 
 // Custom option component that displays the icon
@@ -74,13 +91,13 @@ const ValueContainer = ({ children, data }: any) => (
   </div>
 );
 
-interface IconSelectProps {
+interface RoomIconSelectProps {
   value: string;
   onChange: (value: string) => void;
   className?: string;
 }
 
-const IconSelect: React.FC<IconSelectProps> = ({ value, onChange, className }) => {
+const RoomIconSelect: React.FC<RoomIconSelectProps> = ({ value, onChange, className }) => {
   const options = createIconOptions(availableIcons);
   const selectedOption = options.find(option => option.value === value);
   
@@ -158,4 +175,4 @@ const IconSelect: React.FC<IconSelectProps> = ({ value, onChange, className }) =
   );
 };
 
-export default IconSelect; 
+export default RoomIconSelect; 

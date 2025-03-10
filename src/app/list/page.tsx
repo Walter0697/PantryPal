@@ -6,7 +6,7 @@ import { FaEdit, FaTrash, FaArrowLeft, FaSave, FaTimesCircle, FaPlus } from 'rea
 import { IconType } from 'react-icons';
 import * as Icons from 'react-icons/fa6';
 import { AreaItem, getAreas, updateArea, removeArea, addArea, isAreaNameDuplicate, isAreaIdentifierDuplicate } from '../../util/storage';
-import IconSelect from '../../components/IconSelect';
+import RoomIconSelect from '../../components/RoomIconSelect';
 
 export default function ListPage() {
   const router = useRouter();
@@ -301,7 +301,7 @@ export default function ListPage() {
                       
                       <div>
                         <label className="block text-gray-300 mb-1">Icon</label>
-                        <IconSelect
+                        <RoomIconSelect
                           value={editIcon}
                           onChange={setEditIcon}
                         />
@@ -413,7 +413,7 @@ export default function ListPage() {
               
               <div>
                 <label className="block text-gray-300 mb-1">Icon</label>
-                <IconSelect
+                <RoomIconSelect
                   value={newBoxIcon}
                   onChange={setNewBoxIcon}
                 />

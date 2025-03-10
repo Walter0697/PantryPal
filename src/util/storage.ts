@@ -25,38 +25,70 @@ const AREAS_STORAGE_KEY = 'gridAreas';
 
 // Default values
 const defaultAreas: AreaItem[] = [
+  // Primary Living Areas
   { id: 'kitchen', name: 'Kitchen', identifier: 'KITCHEN-001', iconName: 'FaKitchenSet', color: 'bg-blue-500' },
-  { id: 'bathroom', name: 'Bathroom', identifier: 'BATH-001', iconName: 'FaToilet', color: 'bg-green-500' },
-  { id: 'bedroom', name: 'Bedroom', identifier: 'BED-001', iconName: 'FaBed', color: 'bg-purple-500' },
   { id: 'living-room', name: 'Living Room', identifier: 'LIVING-001', iconName: 'FaCouch', color: 'bg-yellow-500' },
-  { id: 'dining', name: 'Dining', identifier: 'DINING-001', iconName: 'FaUtensils', color: 'bg-red-500' },
-  { id: 'shower', name: 'Shower', identifier: 'SHOWER-001', iconName: 'FaShower', color: 'bg-indigo-500' },
+  { id: 'bedroom', name: 'Bedroom', identifier: 'BED-001', iconName: 'FaBed', color: 'bg-purple-500' },
+  { id: 'dining', name: 'Dining Room', identifier: 'DINING-001', iconName: 'FaUtensils', color: 'bg-red-500' },
+  
+  // Bathrooms and Utilities
+  { id: 'bathroom', name: 'Bathroom', identifier: 'BATH-001', iconName: 'FaToilet', color: 'bg-green-500' },
+  { id: 'laundry', name: 'Laundry Room', identifier: 'LAUNDRY-001', iconName: 'FaShirt', color: 'bg-cyan-500' },
+  
+  // Storage and Special Purpose Rooms
+  { id: 'storage', name: 'Storage Room', identifier: 'STORAGE-001', iconName: 'FaBox', color: 'bg-gray-500' },
+  { id: 'garage', name: 'Garage', identifier: 'GARAGE-001', iconName: 'FaCar', color: 'bg-orange-500' },
+  { id: 'office', name: 'Home Office', identifier: 'OFFICE-001', iconName: 'FaLaptop', color: 'bg-indigo-500' }
 ];
 
 const defaultLayouts = {
   lg: [
+    // Primary Living Areas
     { i: 'kitchen', x: 0, y: 0, w: 6, h: 2 },
-    { i: 'bathroom', x: 6, y: 0, w: 3, h: 1 },
-    { i: 'bedroom', x: 9, y: 0, w: 3, h: 2 },
-    { i: 'living-room', x: 0, y: 2, w: 6, h: 1 },
-    { i: 'dining', x: 6, y: 1, w: 3, h: 2 },
-    { i: 'shower', x: 9, y: 2, w: 3, h: 1 },
+    { i: 'living-room', x: 0, y: 2, w: 6, h: 2 },
+    { i: 'bedroom', x: 6, y: 0, w: 6, h: 2 },
+    { i: 'dining', x: 6, y: 2, w: 6, h: 1 },
+    
+    // Bathrooms and Utilities
+    { i: 'bathroom', x: 0, y: 4, w: 4, h: 1 },
+    { i: 'laundry', x: 4, y: 4, w: 4, h: 1 },
+    
+    // Storage and Special Purpose Rooms
+    { i: 'storage', x: 8, y: 4, w: 4, h: 1 },
+    { i: 'garage', x: 0, y: 5, w: 6, h: 1 },
+    { i: 'office', x: 6, y: 5, w: 6, h: 1 },
   ],
   md: [
-    { i: 'kitchen', x: 0, y: 0, w: 6, h: 2 },
-    { i: 'bathroom', x: 6, y: 0, w: 3, h: 1 },
-    { i: 'bedroom', x: 0, y: 2, w: 6, h: 1 },
-    { i: 'living-room', x: 6, y: 1, w: 3, h: 1 },
-    { i: 'dining', x: 0, y: 3, w: 6, h: 1 },
-    { i: 'shower', x: 6, y: 2, w: 3, h: 1 },
+    // Primary Living Areas
+    { i: 'kitchen', x: 0, y: 0, w: 4, h: 2 },
+    { i: 'living-room', x: 4, y: 0, w: 5, h: 2 },
+    { i: 'bedroom', x: 0, y: 2, w: 5, h: 2 },
+    { i: 'dining', x: 5, y: 2, w: 4, h: 2 },
+    
+    // Bathrooms and Utilities
+    { i: 'bathroom', x: 0, y: 4, w: 3, h: 1 },
+    { i: 'laundry', x: 3, y: 4, w: 3, h: 1 },
+    
+    // Storage and Special Purpose Rooms
+    { i: 'storage', x: 6, y: 4, w: 3, h: 1 },
+    { i: 'garage', x: 0, y: 5, w: 4, h: 1 },
+    { i: 'office', x: 4, y: 5, w: 5, h: 1 },
   ],
   sm: [
+    // Primary Living Areas
     { i: 'kitchen', x: 0, y: 0, w: 6, h: 1 },
-    { i: 'bathroom', x: 0, y: 1, w: 3, h: 1 },
-    { i: 'bedroom', x: 3, y: 1, w: 3, h: 1 },
-    { i: 'living-room', x: 0, y: 2, w: 3, h: 1 },
-    { i: 'dining', x: 3, y: 2, w: 3, h: 1 },
-    { i: 'shower', x: 0, y: 3, w: 6, h: 1 },
+    { i: 'living-room', x: 0, y: 1, w: 6, h: 1 },
+    { i: 'bedroom', x: 0, y: 2, w: 6, h: 1 },
+    { i: 'dining', x: 0, y: 3, w: 6, h: 1 },
+    
+    // Bathrooms and Utilities
+    { i: 'bathroom', x: 0, y: 4, w: 3, h: 1 },
+    { i: 'laundry', x: 3, y: 4, w: 3, h: 1 },
+    
+    // Storage and Special Purpose Rooms
+    { i: 'storage', x: 0, y: 5, w: 3, h: 1 },
+    { i: 'garage', x: 3, y: 5, w: 3, h: 1 },
+    { i: 'office', x: 0, y: 6, w: 6, h: 1 },
   ],
 };
 

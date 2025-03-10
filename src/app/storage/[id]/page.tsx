@@ -13,7 +13,7 @@ import {
 } from '../../../util/storageItems';
 import * as Icons from 'react-icons/fa6';
 import { IconType } from 'react-icons';
-import IconSelect from '../../../components/IconSelect';
+import StorageIconSelect from '../../../components/StorageIconSelect';
 
 type PageParams = {
   params: {
@@ -40,10 +40,28 @@ const getIconComponent = (iconName: string): IconType => {
 
 // Available icons for selection
 const availableIcons = [
-  'FaBox', 'FaKitchenSet', 'FaToilet', 'FaBed', 'FaCouch', 'FaUtensils', 
-  'FaShower', 'FaCar', 'FaGamepad', 'FaLaptop', 'FaBook', 'FaWrench',
-  'FaWineBottle', 'FaShirt', 'FaGuitar', 'FaUmbrellaBeach', 'FaToothbrush',
-  'FaPumpSoap', 'FaBowlFood', 'FaMugHot', 'FaBottleWater'
+  // Food ingredients and drinks
+  'FaBowlFood', 'FaAppleWhole', 'FaEgg', 'FaBreadSlice', 'FaMeatFrozen', 'FaFish',
+  'FaBottleWater', 'FaWineBottle', 'FaMugHot',
+  
+  // Sauces and seasonings
+  'FaJar', 'FaBottleDroplet', 'FaDroplet', 'FaPepperHot',
+  
+  // Cleaning items
+  'FaPumpSoap', 'FaSprayCanSparkles', 'FaBroom', 'FaSoap',
+  
+  // Toilet products
+  'FaToilet', 'FaToothbrush', 'FaShower', 'FaHandSparkles',
+  
+  // Tissue paper
+  'FaToiletPaper', 'FaBox', 'FaScroll',
+  
+  // Electronic items
+  'FaLaptop', 'FaMobile', 'FaHeadphones', 'FaPlug', 'FaBatteryFull',
+  
+  // Generic/Other
+  'FaKitchenSet', 'FaBed', 'FaCouch', 'FaUtensils', 'FaCar', 'FaGamepad',
+  'FaBook', 'FaWrench', 'FaShirt', 'FaUmbrellaBeach'
 ];
 
 // Empty state content with add button
@@ -526,7 +544,7 @@ export default function StoragePage({ params }: PageParams) {
                 
                 <div>
                   <label className="block text-gray-300 mb-1">Icon</label>
-                  <IconSelect
+                  <StorageIconSelect
                     value={editIconName}
                     onChange={setEditIconName}
                   />
@@ -635,7 +653,7 @@ export default function StoragePage({ params }: PageParams) {
                 
                 <div>
                   <label className="block text-gray-300 mb-1">Icon</label>
-                  <IconSelect
+                  <StorageIconSelect
                     value={newItemIconName}
                     onChange={setNewItemIconName}
                   />
