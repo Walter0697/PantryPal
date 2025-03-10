@@ -148,7 +148,19 @@ Get-ChildItem -Path $vercelOutputDir -File -Recurse | Where-Object { $_.Length -
 
 # Step 8: Create archive for R2
 Write-Host "📦 Step 8: Creating archive for R2 upload..." -ForegroundColor Yellow
-Compress-Archive -Path "$vercelOutputDir/*" -DestinationPath "pages-build.zip" -Force
+
+# Create a temporary directory for the proper structure
+$tempDir = Join-Path $env:TEMP "cloudflare-pages-$(Get-Random)"
+New-Item -ItemType Directory -Path "$tempDir\.vercel\output" -Force | Out-Null
+
+# Copy the static directory to the temporary directory
+Copy-Item -Path $vercelOutputDir -Destination "$tempDir\.vercel\output\" -Recurse -Force
+
+# Create the archive from the temporary directory
+Compress-Archive -Path "$tempDir\*" -DestinationPath "pages-build.zip" -Force
+
+# Clean up temporary directory
+Remove-Item -Path $tempDir -Recurse -Force
 
 # Verify archive size
 $archiveSize = (Get-Item "pages-build.zip").Length / 1MB

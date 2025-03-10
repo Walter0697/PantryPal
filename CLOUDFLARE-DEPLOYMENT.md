@@ -6,6 +6,16 @@ This document outlines the process for deploying the Next.js application to Clou
 
 We use Cloudflare R2 Storage for artifact storage to overcome size limitations of direct deployments through Cloudflare Pages, especially when using server-side rendering or API routes. This approach gives us more control over the deployment process.
 
+## Important: Build Output Directory Configuration
+
+In your Cloudflare Pages project settings, make sure you set:
+
+**Build output directory:** `/.vercel/output/static`
+
+This tells Cloudflare where to find your site content within the uploaded archive. Our build scripts are configured to create this exact directory structure.
+
+If you see the error "Output directory '.vercel/output/static' not found", it means Cloudflare can't find this directory in your deployment artifact. Our updated build scripts (as of the latest version) are designed to preserve this directory structure during the upload process.
+
 ## Important: Configuring Project Name
 
 The deployment scripts require the correct Cloudflare Pages project name, which may not match your repository name. By default, the scripts use `pantrypal` as the project name.
@@ -175,11 +185,16 @@ For the R2 deployment method to work properly, you need to configure your Cloudf
    - Under "Builds & deployments", disable "Automatic deployments"
    - This prevents Cloudflare from trying to build your site itself
 
-2. **Verify Direct Upload is enabled**:
+2. **Set the correct Build Output Directory**:
+   - Go to Cloudflare Dashboard > Pages > Your Project > Settings > Build settings
+   - Set "Build output directory" to `/.vercel/output/static`
+   - This tells Cloudflare where to find your site files within the uploaded archive
+
+3. **Verify Direct Upload is enabled**:
    - Go to Cloudflare Dashboard > Pages > Your Project > Settings
    - Check that "Direct Upload" or "Custom deployment" is enabled
 
-3. **Verify your project name**:
+4. **Verify your project name**:
    - Ensure the project name in your deployment scripts matches exactly what's in Cloudflare
    - The project name is case-sensitive
 
@@ -209,6 +224,28 @@ If you have connected your GitHub repository to Cloudflare Pages directly, you s
 3. Set "Automatic deployments" to "Disabled"
 
 ## Troubleshooting
+
+### "Output directory '.vercel/output/static' not found" Error
+
+If you see this error, it means Cloudflare can't find the expected directory in your deployment artifact. This could be due to:
+
+1. **Directory structure issue**: Our updated build scripts now preserve the `.vercel/output/static` path when creating the archive. Make sure you're using the latest version.
+
+2. **Build output directory setting**: Ensure "Build output directory" in your Cloudflare Pages settings is set to `/.vercel/output/static`.
+
+3. **Manual fix for existing archives**: If you need to fix an existing archive:
+   ```bash
+   # Extract the archive
+   mkdir -p temp-extract
+   tar -xf pages-build.tar.gz -C temp-extract
+   
+   # Create the correct structure
+   mkdir -p temp-new/.vercel/output
+   cp -r temp-extract/* temp-new/.vercel/output/static/
+   
+   # Create a new archive
+   tar -czf pages-build-fixed.tar.gz -C temp-new .
+   ```
 
 ### Project Not Found Error
 

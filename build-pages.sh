@@ -116,7 +116,15 @@ done
 
 # Step 8: Create archive for R2
 echo "📦 Step 8: Creating archive for R2 upload..."
-tar -czf pages-build.tar.gz -C $VERCEL_OUTPUT_DIR .
+
+# Create a temporary directory for the proper structure
+TEMP_DIR=$(mktemp -d)
+mkdir -p "$TEMP_DIR/.vercel/output"
+cp -r $VERCEL_OUTPUT_DIR "$TEMP_DIR/.vercel/output/"
+
+# Create the archive from this temporary directory
+tar -czf pages-build.tar.gz -C $TEMP_DIR .
+rm -rf $TEMP_DIR
 
 # Verify archive size
 ARCHIVE_SIZE=$(du -h pages-build.tar.gz | cut -f1)
