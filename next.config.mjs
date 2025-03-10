@@ -22,7 +22,7 @@ const nextConfig = {
   },
   
   // Configure webpack to reduce bundle size
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
     // Optimize bundle size
     if (!isServer) {
       // Disable cache generation in production
@@ -48,9 +48,8 @@ const nextConfig = {
     
     // Add a custom plugin to delete the cache files after the build
     if (!isServer) {
-      const { DefinePlugin } = require('webpack');
       config.plugins.push(
-        new DefinePlugin({
+        new webpack.DefinePlugin({
           'process.env.CLOUDFLARE_PAGES': JSON.stringify(true),
         })
       );
@@ -67,8 +66,10 @@ const nextConfig = {
 
   // Disable specific features for Cloudflare compatibility
   experimental: {
-    // Disable features that might cause large build artifacts
-    serverActions: false,
+    // Properly configure serverActions
+    serverActions: {
+      enabled: false,
+    }
   }
 };
 
