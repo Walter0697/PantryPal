@@ -11,7 +11,7 @@ fi
 # Set project name (allow override via environment variable)
 if [ -z "$CLOUDFLARE_PAGES_PROJECT" ]; then
   # Default project name - replace with your actual Cloudflare Pages project name
-  CLOUDFLARE_PAGES_PROJECT="stock-recorder"
+  CLOUDFLARE_PAGES_PROJECT="pantrypal"
   echo "Using default project name: $CLOUDFLARE_PAGES_PROJECT"
   echo "You can override this by setting the CLOUDFLARE_PAGES_PROJECT environment variable"
 else

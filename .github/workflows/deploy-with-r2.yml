@@ -43,14 +43,16 @@ jobs:
           echo "✅ Verification complete."
 
       - name: Ensure wrangler.toml is valid
+        env:
+          PROJECT_NAME: ${{ secrets.CLOUDFLARE_PAGES_PROJECT || 'pantrypal' }}
         run: |
           echo "🔍 Checking wrangler.toml configuration..."
-          CLOUDFLARE_PAGES_PROJECT=${{ secrets.CLOUDFLARE_PAGES_PROJECT || 'stock-recorder' }}
+          echo "Using project name: $PROJECT_NAME"
           
           # Create a known-good wrangler.toml
           cat > wrangler.toml << EOF
 # Cloudflare Pages configuration
-name = "$CLOUDFLARE_PAGES_PROJECT"
+name = "$PROJECT_NAME"
 
 # Set the build output directory for Pages (this is critical)
 pages_build_output_dir = ".vercel/output/static"
@@ -88,7 +90,7 @@ EOF
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT || 'stock-recorder' }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT || 'pantrypal' }}
         run: |
           # Print project name for debugging
           echo "Using Cloudflare Pages project name: $CLOUDFLARE_PAGES_PROJECT"

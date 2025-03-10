@@ -17,7 +17,7 @@ A wrangler.toml file was found but it does not appear to be valid.
 Make sure the file contains:
 ```toml
 # Cloudflare Pages configuration
-name = "your-project-name"  # Match your Cloudflare project name
+name = "pantrypal"  # Match your Cloudflare project name
 
 # Set the build output directory for Pages (this is critical)
 pages_build_output_dir = ".vercel/output/static"
@@ -35,7 +35,7 @@ If you see the error "Output directory '.vercel/output/static' not found", it me
 
 ## Important: Configuring Project Name
 
-The deployment scripts require the correct Cloudflare Pages project name, which may not match your repository name. By default, the scripts use `stock-recorder` as the project name.
+The deployment scripts require the correct Cloudflare Pages project name, which may not match your repository name. By default, the scripts use `pantrypal` as the project name.
 
 To specify your Cloudflare Pages project name:
 
@@ -95,7 +95,7 @@ The following environment variables must be set for deployments:
 - `CLOUDFLARE_API_TOKEN` - Your Cloudflare API token
 - `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare account ID
 - `R2_BUCKET_NAME` - The name of your R2 bucket
-- `CLOUDFLARE_PAGES_PROJECT` - Your Cloudflare Pages project name (default: "stock-recorder")
+- `CLOUDFLARE_PAGES_PROJECT` - Your Cloudflare Pages project name (default: "pantrypal")
 
 ## Deployment Options
 
@@ -108,7 +108,7 @@ For automated deployments:
    - `CLOUDFLARE_API_TOKEN`
    - `CLOUDFLARE_ACCOUNT_ID`
    - `R2_BUCKET_NAME`
-   - `CLOUDFLARE_PAGES_PROJECT` (optional, defaults to "stock-recorder")
+   - `CLOUDFLARE_PAGES_PROJECT` (optional, defaults to "pantrypal")
 2. Push changes to the `main` or `master` branch to trigger the deployment
 
 The workflow in `.github/workflows/deploy-with-r2.yml` handles building the application, uploading the build artifacts to R2, and deploying to Cloudflare Pages.
@@ -122,7 +122,7 @@ The workflow in `.github/workflows/deploy-with-r2.yml` handles building the appl
 export CLOUDFLARE_API_TOKEN=your_api_token
 export CLOUDFLARE_ACCOUNT_ID=your_account_id
 export R2_BUCKET_NAME=your_bucket_name
-export CLOUDFLARE_PAGES_PROJECT=your_project_name  # Optional, defaults to "stock-recorder"
+export CLOUDFLARE_PAGES_PROJECT=your_project_name  # Optional, defaults to "pantrypal"
 
 # Run the deployment script
 ./deploy-with-r2.sh
@@ -135,7 +135,7 @@ export CLOUDFLARE_PAGES_PROJECT=your_project_name  # Optional, defaults to "stoc
 $env:CLOUDFLARE_API_TOKEN = "your_api_token"
 $env:CLOUDFLARE_ACCOUNT_ID = "your_account_id"
 $env:R2_BUCKET_NAME = "your_bucket_name"
-$env:CLOUDFLARE_PAGES_PROJECT = "your_project_name"  # Optional, defaults to "stock-recorder"
+$env:CLOUDFLARE_PAGES_PROJECT = "your_project_name"  # Optional, defaults to "pantrypal"
 
 # Run the build script
 ./build-pages.ps1

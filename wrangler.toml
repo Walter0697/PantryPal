@@ -1,5 +1,5 @@
 # Cloudflare Pages configuration
-name = "stock-recorder"  # Make sure this matches your project name in Cloudflare
+name = "pantrypal"  # Make sure this matches your project name in Cloudflare
 
 # Build command settings - not used in our deployment but kept for direct Wrangler usage
 [build]
