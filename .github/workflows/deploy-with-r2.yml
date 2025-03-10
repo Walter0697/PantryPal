@@ -1,91 +1,75 @@
-name: Build, Upload to R2, and Deploy to Cloudflare Pages
+name: Deploy to Cloudflare Pages with R2
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Build with custom build script
-      run: |
-        chmod +x ./build-pages.sh
-        ./build-pages.sh
-      env:
-        # Add minimal env vars needed for build
-        AWS_REGION: 'us-east-1'
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || 'dummy-key-for-build' }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || 'dummy-secret-for-build' }}
-        COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID || 'dummy-pool-id' }}
-        COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID || 'dummyclientid' }}
-        NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${{ secrets.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || 'dummy-recaptcha-key' }}
-        NEXT_PUBLIC_CLOUDFLARE_PAGES: 'true'
-        NODE_ENV: 'production'
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Install Wrangler
-      run: npm install -g wrangler
-    
-    - name: Verify Wrangler Authentication
-      run: wrangler whoami
-      env:
-        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      
-    - name: Upload to R2
-      run: |
-        TIMESTAMP=$(date +%Y%m%d%H%M%S)
-        ARTIFACT_PATH="builds/stock-recorder-pages-${TIMESTAMP}.tar.gz"
-        echo "ARTIFACT_PATH=${ARTIFACT_PATH}" >> $GITHUB_ENV
-        
-        # Enable verbose logging for debugging
-        export WRANGLER_LOG=debug
-        
-        # Upload to R2 bucket
-        wrangler r2 object put ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file pages-build.tar.gz
-      env:
-        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
 
-    - name: Extract R2 Artifact for Deployment
-      run: |
-        # Create a temporary directory for extraction
-        mkdir -p pages-deployment
-        
-        # Download the artifact from R2
-        wrangler r2 object get ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file pages-artifact.tar.gz
-        
-        # Extract the artifact
-        tar -xzf pages-artifact.tar.gz -C pages-deployment
-        
-        echo "Extracted pages artifact for deployment"
-      env:
-        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Deploy to Cloudflare Pages
-      run: |
-        # Deploy the pages build to Cloudflare Pages
-        wrangler pages deploy ./pages-deployment \
-          --project-name=pantrypal \
-          --branch=main \
-          --commit-hash=${{ github.sha }} \
-          --commit-message="${{ github.event.head_commit.message || 'Manual deployment' }}"
-        
-        echo "Deployment initiated with Cloudflare Pages integration"
-      env:
-        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }} 
+      - name: Build Next.js app for Cloudflare Pages
+        run: |
+          chmod +x ./build-pages.sh
+          ./build-pages.sh
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Upload to R2 and deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          # Upload to R2 bucket
+          echo "Uploading build archive to R2 bucket..."
+          curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$R2_BUCKET_NAME/objects/pages-build.tar.gz" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/gzip" \
+            --data-binary @pages-build.tar.gz
+
+          # Create deployment
+          echo "Creating deployment..."
+          DEPLOY_RESPONSE=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/stock-recorder/deployments" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{\"production\": {\"r2_bucket\": \"$R2_BUCKET_NAME\", \"r2_object\": \"pages-build.tar.gz\"}}")
+          
+          echo "Deployment response: $DEPLOY_RESPONSE"
+          
+          # Extract deployment URL and ID
+          DEPLOY_URL=$(echo $DEPLOY_RESPONSE | jq -r '.result.url')
+          DEPLOY_ID=$(echo $DEPLOY_RESPONSE | jq -r '.result.id')
+          
+          echo "Deployment URL: $DEPLOY_URL"
+          echo "Deployment ID: $DEPLOY_ID"
+          
+          # Wait for deployment to complete
+          echo "Waiting for deployment to complete..."
+          sleep 10
+          
+          # Set worker permissions
+          echo "Setting worker permissions..."
+          WORKER_CONFIG_RESPONSE=$(curl -X PATCH "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/stock-recorder/deployments/latest" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{"deployment_configs":{"production":{"compatibility_flags":["streams_enable_constructors"],"compatibility_date":"2023-10-30","usage_model":"bundled"}}}')
+            
+          echo "Worker config response: $WORKER_CONFIG_RESPONSE"
+          
+          echo "Deployment complete! Site available at: $DEPLOY_URL" 

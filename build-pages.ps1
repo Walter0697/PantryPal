@@ -38,43 +38,27 @@ if (Test-Path "public") {
     Copy-Item -Path "public/*" -Destination $vercelOutputDir -Recurse -Force
 }
 
-# Step 4: Create minimal _worker.js file
+# Step 4: Create improved _worker.js file
 Write-Host "🔧 Step 4: Creating Cloudflare worker script..." -ForegroundColor Yellow
 
 $workerJs = @"
-// Cloudflare Pages Edge Worker
+// Cloudflare Pages Worker - Simplified for compatibility
 export default {
   async fetch(request, env, ctx) {
-    // Parse the URL
     const url = new URL(request.url);
-    const pathname = url.pathname;
+    const path = url.pathname;
     
-    // Handle static assets
-    if (pathname.startsWith('/_next/static/') || 
-        pathname.startsWith('/images/') || 
-        pathname.endsWith('.ico') || 
-        pathname.endsWith('.svg') ||
-        pathname.endsWith('.png') || 
-        pathname.endsWith('.jpg') || 
-        pathname.endsWith('.jpeg') ||
-        pathname.endsWith('.css') || 
-        pathname.endsWith('.js')) {
+    // Directly serve static assets
+    if (path.startsWith('/_next/') || 
+        path.match(/\.(ico|svg|png|jpg|jpeg|css|js)$/)) {
       return fetch(request);
     }
     
-    // For all other routes, serve the index.html
+    // For all routes, try to serve index.html
     try {
-      const response = await fetch(new URL('/index.html', request.url));
-      return new Response(response.body, {
-        headers: {
-          'content-type': 'text/html;charset=UTF-8',
-        },
-      });
-    } catch (error) {
-      return new Response(`Server Error: ${error.message}`, {
-        status: 500,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return fetch(new URL('/index.html', request.url));
+    } catch (e) {
+      return new Response('Page not found', { status: 404 });
     }
   }
 };
@@ -82,8 +66,8 @@ export default {
 
 Set-Content -Path "$vercelOutputDir/_worker.js" -Value $workerJs
 
-# Step 5: Create a basic static HTML page
-Write-Host "📄 Step 5: Creating basic static HTML page..." -ForegroundColor Yellow
+# Step 5: Create a basic HTML entry point
+Write-Host "📄 Step 5: Creating basic HTML entry point..." -ForegroundColor Yellow
 
 $indexHtml = @"
 <!DOCTYPE html>
@@ -92,27 +76,33 @@ $indexHtml = @"
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stock Recorder</title>
-  <script src="/_next/static/chunks/pages/index.js" defer></script>
   <link rel="stylesheet" href="/_next/static/css/app.css">
 </head>
 <body>
   <div id="__next"></div>
-  <script>
-    // This is a basic client-side router that will load the correct script
-    const path = window.location.pathname;
-    const script = document.createElement('script');
-    script.src = `/_next/static/chunks/pages${path === '/' ? '/index' : path}.js`;
-    script.defer = true;
-    document.head.appendChild(script);
-  </script>
+  <script src="/_next/static/chunks/main.js" defer></script>
+  <script src="/_next/static/chunks/pages/index.js" defer></script>
 </body>
 </html>
 "@
 
 Set-Content -Path "$vercelOutputDir/index.html" -Value $indexHtml
 
-# Step 6: Create archive for R2
-Write-Host "📦 Step 6: Creating archive for R2 upload..." -ForegroundColor Yellow
+# Step 6: Create a simple _routes.json file for Cloudflare Pages
+Write-Host "📝 Step 6: Creating Cloudflare Pages routes config..." -ForegroundColor Yellow
+
+$routesJson = @"
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": []
+}
+"@
+
+Set-Content -Path "$vercelOutputDir/_routes.json" -Value $routesJson
+
+# Step 7: Create archive for R2
+Write-Host "📦 Step 7: Creating archive for R2 upload..." -ForegroundColor Yellow
 Compress-Archive -Path "$vercelOutputDir/*" -DestinationPath "pages-build.zip" -Force
 
 Write-Host "✅ Build complete! You can now upload the pages-build.zip file to R2." -ForegroundColor Green 
