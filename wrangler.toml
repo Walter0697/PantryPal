@@ -1,13 +1,21 @@
+# Cloudflare Pages configuration
+name = "pantrypal"
+
 [build]
-command = "npm run build"
-output_directory = ".next"
+command = "npm install --legacy-peer-deps && npm run build"
 
-[env]
-NODE_VERSION = "20"
+# The directory where your built assets will be placed
+[build.upload]
+format = "directory"
 
+# Required for Cloudflare Pages
 [site]
 bucket = ".next"
 
-# Enable Node.js compatibility
+# Set the build output directory for Pages
 [build.environment]
-NODE_COMPAT = "true" 
+NODE_VERSION = "20"
+NODE_COMPAT = "true"
+
+# This is the key parameter for Cloudflare Pages
+pages_build_output_dir = ".next" 
