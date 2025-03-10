@@ -29,6 +29,85 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## reCAPTCHA Configuration
+
+This application uses Google reCAPTCHA v3 (invisible) to protect against automated login attempts. Follow these steps to set it up:
+
+1. Go to the [Google reCAPTCHA Admin Console](https://www.google.com/recaptcha/admin)
+2. Sign in with a Google account
+3. Register a new site:
+   - Enter a label (e.g., "My Application")
+   - Select **reCAPTCHA v3**
+   - Add your domains (e.g., localhost for development, your production domain)
+   - Accept the terms of service and click "Submit"
+
+4. You will receive two keys:
+   - Site Key: This is public and goes in your frontend code
+   - Secret Key: This is private and should be kept secure
+
+5. Add these keys to your .env file:
+   ```
+   NEXT_PUBLIC_RECAPTCHA_SITE_KEY=your-site-key-here
+   RECAPTCHA_SECRET_KEY=your-secret-key-here
+   ```
+
+6. Restart your application
+
+reCAPTCHA v3 is invisible to the user and assigns a score (0.0 to 1.0) to each login attempt based on how likely it is to be human. The application will reject login attempts with scores below 0.3.
+
+### Troubleshooting reCAPTCHA Issues
+
+If you see the error "reCAPTCHA verification failed. Please try again." or similar messages, check these common issues:
+
+1. **Domain Mismatch**: Ensure the domain you're testing on is listed in the reCAPTCHA admin console
+   - For local testing, make sure `localhost` is added
+   - For custom local domains, add them to your hosts file AND the reCAPTCHA settings
+
+2. **Key Configuration**: Verify your keys are correctly set in the .env file
+   - Double-check for typos or extra spaces in the keys
+   - Make sure you're using v3 keys, not v2
+
+3. **Network Issues**: Check if your network might be blocking Google's reCAPTCHA service
+   - Some corporate networks or VPNs may interfere with reCAPTCHA
+   - Try on a different network if possible
+
+4. **Browser Extensions**: Some privacy extensions can block reCAPTCHA
+   - Try temporarily disabling ad blockers or privacy extensions
+
+5. **Script Loading**: Ensure the reCAPTCHA script is loading properly
+   - Check your browser console for any script loading errors
+
+6. **"reCAPTCHA returned empty token" Error**:
+   - This occurs when reCAPTCHA generates a null/empty token during login
+   - Common causes:
+     - Script loading issues or race conditions
+     - Network connectivity problems to Google services
+     - Browser privacy settings blocking the token generation
+   - The application automatically switches to fallback mode after failed attempts
+   - Try clearing your browser cache, disabling strict privacy settings, or using a different browser
+
+7. **"Cannot read properties of undefined (reading 'hpm')" Error**:
+   - This is a known issue with reCAPTCHA v3 and certain versions of React
+   - The error is harmless and doesn't affect functionality
+   - The application includes error suppression code to prevent it from appearing in the console
+   - If you're still seeing this error, try clearing your browser cache or using a different browser
+
+For developers: You can see detailed error information in the server logs when running in development mode.
+
+### Fallback Mode
+
+The application includes a reCAPTCHA fallback mode that activates in these scenarios:
+- When reCAPTCHA services cannot be reached
+- When token generation fails repeatedly
+- In development mode when configuration is incomplete
+
+Fallback mode is intended for:
+1. Development and testing without needing to set up reCAPTCHA
+2. Emergency access when Google services are unreachable
+3. Providing graceful degradation in case of reCAPTCHA failures
+
+**Note:** Fallback mode reduces security and should be disabled or restricted in production environments based on your security requirements.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

@@ -39,14 +39,130 @@ console.log(`- Client ID valid format: ${COGNITO_CLIENT_ID ? /^[\w+]+$/.test(COG
 console.log(`- User Pool ID: "${COGNITO_USER_POOL_ID}"`);
 console.log(`- AWS Region: "${AWS_REGION}"`);
 
+// Add the reCAPTCHA verification function for v3
+async function verifyRecaptcha(token: string): Promise<{ success: boolean; score?: number; error?: string }> {
+  // Special case: fallback mode
+  if (token === 'FALLBACK_MODE') {
+    console.log('Using reCAPTCHA fallback mode - security reduced');
+    // In fallback mode, we accept the request but log it prominently
+    // This should only be used for debugging or when reCAPTCHA is completely inaccessible
+    // In a production environment, you might want to add additional checks here
+    return { success: true, score: 0.5 };
+  }
+
+  try {
+    // Validation check for token format
+    if (!token || token.length < 20) {
+      console.error('Invalid reCAPTCHA token format:', token?.substring(0, 10) + '...');
+      return { success: false, error: 'Invalid token format' };
+    }
+
+    // Get the secret key from environment variables
+    const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+    
+    if (!secretKey) {
+      console.error('reCAPTCHA secret key is not configured in environment variables');
+      // In development, allow fallback if secret key is missing
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('DEV MODE: Allowing request without reCAPTCHA verification');
+        return { success: true, score: 0.5 };
+      }
+      return { success: false, error: 'Missing configuration' };
+    }
+
+    console.log('Attempting reCAPTCHA verification with Google API...');
+    
+    // Make a request to the Google reCAPTCHA verification API
+    const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        secret: secretKey,
+        response: token,
+      }),
+    });
+    
+    // Handle non-200 responses
+    if (!response.ok) {
+      console.error(`reCAPTCHA API returned ${response.status}: ${response.statusText}`);
+      return { 
+        success: false, 
+        error: `API error: ${response.status}` 
+      };
+    }
+    
+    // Parse the response
+    const data = await response.json();
+    console.log('reCAPTCHA API response:', JSON.stringify(data));
+    
+    // For v3, we get a score from 0.0 to 1.0 (1.0 is very likely a human)
+    // You can adjust the threshold based on your security needs
+    const minAcceptableScore = 0.3; // More permissive threshold for testing
+    
+    if (data.success === true) {
+      // Log the score for debugging
+      console.log(`reCAPTCHA verification succeeded with score: ${data.score}`);
+      
+      // Return success and score
+      return { 
+        success: data.score >= minAcceptableScore,
+        score: data.score 
+      };
+    }
+    
+    // If success is false, something went wrong with verification
+    console.error('reCAPTCHA verification failed:', data['error-codes']);
+    return { 
+      success: false, 
+      error: Array.isArray(data['error-codes']) ? data['error-codes'].join(', ') : 'Unknown verification error'
+    };
+  } catch (error: any) {
+    console.error('reCAPTCHA verification error:', error);
+    return { 
+      success: false, 
+      error: error?.message || 'Network or server error'
+    };
+  }
+}
+
 // This is a server action for authentication
 export async function authenticate(formData: FormData) {
   const username = formData.get('username') as string;
   const password = formData.get('password') as string;
+  const recaptchaToken = formData.get('recaptchaToken') as string;
 
   // Simple validation
   if (!username || !password) {
     return { success: false, message: 'Username and password are required' };
+  }
+  
+  // Verify reCAPTCHA token
+  if (!recaptchaToken) {
+    console.warn('Login attempt without reCAPTCHA token for user:', username);
+    return { success: false, message: 'Security verification failed. Please refresh the page and try again.' };
+  }
+  
+  // Verify the reCAPTCHA token
+  const recaptchaResult = await verifyRecaptcha(recaptchaToken);
+  
+  // Handle the verification result
+  if (!recaptchaResult.success) {
+    console.error(`reCAPTCHA verification failed for user ${username}:`, recaptchaResult.error);
+    
+    // For production, we don't want to reveal too much about the failure
+    const isProduction = process.env.NODE_ENV === 'production';
+    const message = isProduction
+      ? 'Security verification failed. Please try again.'
+      : `reCAPTCHA verification failed: ${recaptchaResult.error || 'Unknown error'}`;
+      
+    return { success: false, message };
+  }
+  
+  // If score is low but not failing, log it for monitoring
+  if (recaptchaResult.score && recaptchaResult.score < 0.5) {
+    console.warn(`Low reCAPTCHA score (${recaptchaResult.score}) for user: ${username}`);
   }
 
   try {

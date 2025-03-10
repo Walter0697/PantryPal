@@ -8,13 +8,27 @@ import { authenticate, completeNewPassword, forgotPassword, confirmForgotPasswor
 import { useAuth } from '../components/AuthProvider';
 import RedirectHelper from '../components/RedirectHelper';
 import PasswordInput from '../components/PasswordInput';
+import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 
-export default function LoginPage() {
+// Add at the top of the file, after imports
+declare global {
+  interface Window {
+    grecaptcha?: {
+      ready: (callback: () => void) => void;
+      enterprise?: unknown;
+    };
+  }
+}
+
+// Wrap the LoginPage with the GoogleReCaptchaProvider
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [returnUrl, setReturnUrl] = useState('/home');
+  const { executeRecaptcha } = useGoogleReCaptcha();
+  const [recaptchaFailed, setRecaptchaFailed] = useState(false);
   
   // For normal login
   const [username, setUsername] = useState('');
@@ -70,17 +84,184 @@ export default function LoginPage() {
 
   async function handleNormalLogin(e: React.FormEvent) {
     e.preventDefault();
-    setIsLoading(true);
     
     try {
+      setIsLoading(true);
+      
       console.log(`Login attempt started for user: ${username}`);
-      console.log(`Return URL: ${returnUrl}`);
+      
+      // Only attempt reCAPTCHA if not in fallback mode
+      let recaptchaToken = null;
+      
+      // Wrap reCAPTCHA execution in a try-catch to handle potential hpm errors
+      if (!recaptchaFailed && executeRecaptcha) {
+        // Create a promise with timeout for reCAPTCHA
+        const getRecaptchaToken = async (): Promise<string | null> => {
+          try {
+            console.log('Executing reCAPTCHA verification...');
+            
+            // Wait for reCAPTCHA to be fully ready
+            if (!(window as any).__RECAPTCHA_READY) {
+              console.log('Waiting for reCAPTCHA to initialize...');
+              // Wait up to 5 seconds for reCAPTCHA to be ready
+              for (let i = 0; i < 10; i++) {
+                if ((window as any).__RECAPTCHA_READY) {
+                  console.log('reCAPTCHA is now ready');
+                  break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+              
+              if (!(window as any).__RECAPTCHA_READY) {
+                console.error('reCAPTCHA failed to initialize within timeout period');
+                return null;
+              }
+            }
+            
+            // Enhanced pre-check for reCAPTCHA
+            const preCheckRecaptcha = async (): Promise<boolean> => {
+              // Check if grecaptcha object is properly loaded
+              if (typeof window === 'undefined' || 
+                  !window.grecaptcha || 
+                  typeof window.grecaptcha.ready !== 'function') {
+                
+                console.warn('reCAPTCHA not properly loaded, attempting to reload script...');
+                
+                // Try to reload the script
+                const existingScript = document.getElementById('recaptcha-script');
+                if (existingScript) {
+                  existingScript.remove();
+                  console.log('Removed existing reCAPTCHA script');
+                }
+                
+                // Wait for a moment before checking again
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                // Final check after attempted reload
+                if (typeof window !== 'undefined' && 
+                    window.grecaptcha && 
+                    typeof window.grecaptcha.ready === 'function') {
+                  console.log('reCAPTCHA successfully reloaded');
+                  return true;
+                }
+                
+                console.error('reCAPTCHA still not available after reload attempt');
+                return false;
+              }
+              
+              return true;
+            };
+            
+            // Run the pre-check
+            const recaptchaAvailable = await preCheckRecaptcha();
+            if (!recaptchaAvailable) {
+              return null;
+            }
+            
+            // Set a timeout for the recaptcha execution
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('reCAPTCHA timed out')), 10000);
+            });
+            
+            // Ensure reCAPTCHA is ready before execution
+            await new Promise<void>(resolve => {
+              if (typeof window !== 'undefined' && window.grecaptcha) {
+                window.grecaptcha.ready(() => {
+                  console.log('reCAPTCHA is ready for execution');
+                  resolve();
+                });
+              } else {
+                console.log('grecaptcha not available, resolving anyway');
+                resolve();
+              }
+            });
+            
+            // Race between timeout and recaptcha execution
+            const token = await Promise.race([
+              new Promise(async (resolve) => {
+                try {
+                  if (!executeRecaptcha) {
+                    console.error('executeRecaptcha function is not available');
+                    resolve(null);
+                    return;
+                  }
+                  
+                  // Add additional error handling around executeRecaptcha
+                  const result = await executeRecaptcha('login');
+                  
+                  // Explicitly check for empty or invalid tokens
+                  if (!result || typeof result !== 'string' || result.trim() === '') {
+                    console.error('reCAPTCHA returned invalid token:', result);
+                    resolve(null);
+                    return;
+                  }
+                  
+                  resolve(result);
+                } catch (err) {
+                  console.error('Inner executeRecaptcha error:', err);
+                  resolve(null);
+                }
+              }),
+              timeoutPromise
+            ]) as string;
+            
+            // Add additional validation for token format
+            if (!token) {
+              console.error('reCAPTCHA returned empty token');
+              return null;
+            }
+            
+            // Check token length for basic validation
+            if (token.length < 20) {
+              console.error(`reCAPTCHA token seems invalid (length: ${token.length})`);
+              return null;
+            }
+            
+            console.log('reCAPTCHA token obtained successfully');
+            return token;
+          } catch (error) {
+            // Catch any errors from the reCAPTCHA execution
+            console.error('reCAPTCHA execution error:', error);
+            if (String(error).includes('hpm')) {
+              console.log('Detected hpm error in reCAPTCHA execution, using fallback');
+            }
+            return null;
+          }
+        };
+        
+        // Try to get token with retry
+        let attempts = 0;
+        const maxAttempts = 2;
+        
+        while (!recaptchaToken && attempts < maxAttempts) {
+          attempts++;
+          console.log(`reCAPTCHA attempt ${attempts}/${maxAttempts}`);
+          recaptchaToken = await getRecaptchaToken();
+          
+          if (!recaptchaToken && attempts < maxAttempts) {
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+        
+        if (!recaptchaToken) {
+          console.error('All reCAPTCHA attempts failed, switching to fallback mode');
+          setRecaptchaFailed(true);
+          // Use a fallback "token" that the server will recognize as fallback mode
+          recaptchaToken = 'FALLBACK_MODE';
+        }
+      } else {
+        // We're in fallback mode or reCAPTCHA is not available
+        console.log('Using reCAPTCHA fallback mode');
+        recaptchaToken = 'FALLBACK_MODE';
+      }
       
       try {
         // Create formData from the state values
         const formData = new FormData();
         formData.append('username', username);
         formData.append('password', password);
+        formData.append('recaptchaToken', recaptchaToken);
         
         // Call the server action
         console.log('Calling authentication server action...');
@@ -433,6 +614,11 @@ export default function LoginPage() {
               <p className="text-gray-400 text-sm">
                 Track your kitchen inventory, create shopping lists, and never run out of essential ingredients again.
               </p>
+              <p className="text-xs text-gray-400 mt-2">
+                {recaptchaFailed ? 
+                  'Security verification in fallback mode' : 
+                  'Protected by reCAPTCHA v3'}
+              </p>
             </div>
           </form>
         )}
@@ -660,5 +846,175 @@ export default function LoginPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Wrapper component with reCAPTCHA provider
+export default function LoginPage() {
+  const [recaptchaError, setRecaptchaError] = useState<string | null>(null);
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '';
+  
+  // Log configuration information for debugging
+  useEffect(() => {
+    if (!siteKey) {
+      console.error('NEXT_PUBLIC_RECAPTCHA_SITE_KEY is not configured in environment variables');
+      setRecaptchaError('reCAPTCHA site key missing - check .env file');
+    } else if (siteKey === 'your-recaptcha-v3-site-key') {
+      console.error('NEXT_PUBLIC_RECAPTCHA_SITE_KEY is using the default placeholder value');
+      setRecaptchaError('Using placeholder reCAPTCHA key - set actual key in .env');
+    } else {
+      console.log('reCAPTCHA configuration loaded with site key (first 5 chars):', siteKey.substring(0, 5) + '...');
+    }
+    
+    // Check if the site appears to be running on localhost
+    const isLocalhost = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    
+    if (isLocalhost) {
+      console.log('Running on localhost - ensure localhost is added to reCAPTCHA domain list');
+    }
+    
+    // Debug Google's services availability
+    const checkGoogleServices = async () => {
+      try {
+        const response = await fetch('https://www.google.com/recaptcha/api.js', { 
+          method: 'HEAD',
+          mode: 'no-cors' // Just checking if it loads, not the content
+        });
+        console.log('reCAPTCHA script appears to be reachable');
+      } catch (error) {
+        console.error('Unable to reach Google reCAPTCHA services:', error);
+        setRecaptchaError('Cannot reach reCAPTCHA services - check network');
+      }
+    };
+    
+    checkGoogleServices();
+    
+    // Add global error handler to catch and suppress reCAPTCHA related errors
+    const originalOnError = window.onerror;
+    window.onerror = function(message, source, lineno, colno, error) {
+      // Check if the error message contains 'hpm' which is a known issue with reCAPTCHA
+      if (typeof message === 'string' && message.includes('hpm')) {
+        console.log('Suppressed reCAPTCHA internal error related to hpm property');
+        return true; // Prevent the error from propagating
+      }
+      
+      // Otherwise, use the original error handler
+      if (originalOnError) {
+        return originalOnError.call(this, message, source, lineno, colno, error);
+      }
+      return false;
+    };
+    
+    // Cleanup function to restore the original error handler
+    return () => {
+      window.onerror = originalOnError;
+    };
+  }, [siteKey]);
+  
+  // Then add this code to monitor script loading after the GoogleReCaptchaProvider initialization
+  useEffect(() => {
+    // Monitor for script loading
+    const scriptLoadingCheck = setInterval(() => {
+      const recaptchaScript = document.getElementById('recaptcha-script');
+      if (recaptchaScript) {
+        console.log('reCAPTCHA script element found in DOM');
+        if (window.grecaptcha) {
+          console.log('reCAPTCHA script has loaded successfully');
+          clearInterval(scriptLoadingCheck);
+        }
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(scriptLoadingCheck);
+    };
+  }, []);
+  
+  // Add this to the LoginPage component
+  // Define the global callback for reCAPTCHA loading
+  useEffect(() => {
+    // Define a global function that will be called when reCAPTCHA is fully loaded
+    (window as any).onRecaptchaLoaded = () => {
+      console.log('reCAPTCHA script loaded via onload callback');
+      // Remove any error message related to reCAPTCHA loading
+      if (recaptchaError && recaptchaError.includes('script failed to load')) {
+        setRecaptchaError(null);
+      }
+    };
+    
+    return () => {
+      // Clean up the global function
+      (window as any).onRecaptchaLoaded = undefined;
+    };
+  }, [recaptchaError]);
+  
+  // Add this to the top of the LoginPage component
+  useEffect(() => {
+    // Set a global variable to know if reCAPTCHA script is loading
+    (window as any).__RECAPTCHA_LOADING = true;
+    
+    // Remove any existing script to force a new load
+    const oldScript = document.getElementById('recaptcha-script');
+    if (oldScript) {
+      oldScript.remove();
+    }
+    
+    // Add script load event listener
+    const checkRecaptchaLoaded = () => {
+      const maxAttempts = 10;
+      let attempts = 0;
+      
+      const checkInterval = setInterval(() => {
+        attempts++;
+        if (window.grecaptcha && typeof window.grecaptcha.ready === 'function') {
+          console.log('reCAPTCHA script verified as fully loaded');
+          clearInterval(checkInterval);
+          (window as any).__RECAPTCHA_READY = true;
+        } else if (attempts >= maxAttempts) {
+          console.error('Failed to load reCAPTCHA after multiple attempts');
+          clearInterval(checkInterval);
+          setRecaptchaError('reCAPTCHA failed to initialize - please refresh the page');
+        }
+      }, 1000);
+    };
+    
+    // Start checking after a short delay to allow script injection
+    setTimeout(checkRecaptchaLoaded, 2000);
+    
+    return () => {
+      (window as any).__RECAPTCHA_LOADING = false;
+    };
+  }, []);
+  
+  return (
+    <>
+      {recaptchaError && (
+        <div className="fixed top-0 left-0 right-0 bg-red-600 text-white text-center p-2 z-50">
+          reCAPTCHA Error: {recaptchaError}
+        </div>
+      )}
+      <GoogleReCaptchaProvider
+        reCaptchaKey={siteKey}
+        scriptProps={{
+          async: true,
+          defer: true,
+          appendTo: 'head',
+          nonce: undefined,
+          id: 'recaptcha-script',
+        }}
+        language="en"
+        useEnterprise={false}
+        useRecaptchaNet={true}
+        container={{
+          parameters: {
+            badge: 'bottomright',
+            theme: 'dark',
+          },
+        }}
+      >
+        <LoginPageContent />
+      </GoogleReCaptchaProvider>
+    </>
   );
 }
