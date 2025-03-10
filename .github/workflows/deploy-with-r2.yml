@@ -21,11 +21,9 @@ jobs:
     - name: Install dependencies
       run: npm ci
       
-    - name: Build as Static Export
+    - name: Build (Server-Side Rendering)
       run: npm run build
       env:
-        # Force static export mode to avoid Node.js built-in module errors
-        NEXT_STATIC_EXPORT: 'true'
         # Add minimal env vars needed for build
         AWS_REGION: 'us-east-1'
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || 'dummy-key-for-build' }}
@@ -36,16 +34,73 @@ jobs:
         NEXT_PUBLIC_CLOUDFLARE_PAGES: 'true'
         NODE_ENV: 'production'
 
-    - name: Prepare static build artifacts
+    - name: Create Edge Worker
       run: |
-        # Check for out directory (static export output)
-        if [ -d "out" ]; then
-          echo "Static export found in 'out' directory"
+        # Create a _worker.js file that will proxy requests to the Next.js server
+        cat > _worker.js << 'EOF'
+        // Cloudflare Pages Edge Worker for Next.js standalone server
+        export default {
+          async fetch(request, env) {
+            // The URL pathname
+            const url = new URL(request.url);
+            const pathname = url.pathname;
+            
+            // Serve static assets directly
+            if (pathname.startsWith('/_next/static/') || 
+                pathname.startsWith('/images/') || 
+                pathname.endsWith('.ico') || 
+                pathname.endsWith('.svg') ||
+                pathname.endsWith('.png') || 
+                pathname.endsWith('.jpg') || 
+                pathname.endsWith('.jpeg') ||
+                pathname.endsWith('.css') || 
+                pathname.endsWith('.js')) {
+              // Pass through to Cloudflare's asset serving
+              return fetch(request);
+            }
+            
+            // For API requests and dynamic pages, proxy to the Next.js server
+            try {
+              // Create a fully qualified URL to forward to server.js
+              // In Cloudflare, we invoke the server through the binding
+              return await env.NEXT_SERVER.fetch(request);
+            } catch (error) {
+              return new Response(`Server Error: ${error.message}`, {
+                status: 500,
+                headers: { 'Content-Type': 'text/plain' }
+              });
+            }
+          }
+        };
+        EOF
+
+    - name: Prepare build artifacts
+      run: |
+        # Ensure standalone output directory exists
+        if [ -d ".next/standalone" ]; then
+          echo "Preparing SSR build artifacts for R2 upload"
+          
+          # Copy static and public assets to standalone directory
+          if [ -d ".next/static" ]; then
+            mkdir -p .next/standalone/.next/static
+            cp -R .next/static .next/standalone/.next/
+          fi
+          
+          if [ -d "public" ]; then
+            cp -R public .next/standalone/
+          fi
+          
+          # Remove any large files that might exceed Cloudflare's limits
+          find .next/standalone -name "*.pack" -delete
+          find .next/standalone -name "*.map" -delete
+          
+          # Copy the edge worker file
+          cp _worker.js .next/standalone/
           
           # Create artifact archive
-          tar -czf static-build.tar.gz -C out .
+          tar -czf server-build.tar.gz -C .next/standalone .
         else
-          echo "Error: 'out' directory not found. Static export build may have failed."
+          echo "Error: Standalone directory not found. Build may have failed."
           exit 1
         fi
 
@@ -61,14 +116,14 @@ jobs:
     - name: Upload to R2
       run: |
         TIMESTAMP=$(date +%Y%m%d%H%M%S)
-        ARTIFACT_PATH="builds/stock-recorder-static-${TIMESTAMP}.tar.gz"
+        ARTIFACT_PATH="builds/stock-recorder-server-${TIMESTAMP}.tar.gz"
         echo "ARTIFACT_PATH=${ARTIFACT_PATH}" >> $GITHUB_ENV
         
         # Enable verbose logging for debugging
         export WRANGLER_LOG=debug
         
         # Upload to R2 bucket
-        wrangler r2 object put ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file static-build.tar.gz
+        wrangler r2 object put ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file server-build.tar.gz
       env:
         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -76,32 +131,31 @@ jobs:
     - name: Extract R2 Artifact for Deployment
       run: |
         # Create a temporary directory for extraction
-        mkdir -p static-deployment
+        mkdir -p server-deployment
         
         # Download the artifact from R2
-        wrangler r2 object get ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file static-artifact.tar.gz
+        wrangler r2 object get ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file server-artifact.tar.gz
         
         # Extract the artifact
-        tar -xzf static-artifact.tar.gz -C static-deployment
+        tar -xzf server-artifact.tar.gz -C server-deployment
         
-        echo "Extracted static artifact for deployment"
+        echo "Extracted server artifact for deployment"
       env:
         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-    - name: Deploy to Cloudflare Pages
+    - name: Deploy to Cloudflare Pages with Server Binding
       run: |
-        # Enable verbose logging for debugging
-        export WRANGLER_LOG=debug
-        
-        # Deploy using the extracted files from R2
-        wrangler pages deployment create ./static-deployment \
+        # Create a Cloudflare service to run the Next.js server
+        wrangler pages deploy ./server-deployment \
           --project-name=pantrypal \
           --branch=main \
           --commit-hash=${{ github.sha }} \
-          --commit-message="${{ github.event.head_commit.message || 'Manual deployment' }}"
+          --commit-message="${{ github.event.head_commit.message || 'Manual deployment' }}" \
+          --binding "NEXT_SERVER:workerd" \
+          --compatibility-date=$(date +%Y-%m-%d)
         
-        echo "Static deployment initiated using artifact from R2"
+        echo "Deployment initiated with server-side rendering support"
       env:
         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }} 

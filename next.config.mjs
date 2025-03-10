@@ -8,8 +8,9 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   
-  // Use output: 'export' in static mode, or 'standalone' in server mode 
-  output: process.env.NEXT_STATIC_EXPORT ? 'export' : 'standalone',
+  // Use standalone output mode (NOT static export)
+  // This creates a self-contained Node.js server
+  output: 'standalone',
   
   // Disable image optimization (use optimized images directly)
   images: {
@@ -37,20 +38,6 @@ const nextConfig = {
     
     return config;
   },
-  
-  // Static export configuration
-  ...(process.env.NEXT_STATIC_EXPORT ? {
-    // For static export, configure route handling
-    trailingSlash: true,
-    // Optionally exclude the dynamic storage route when building for static export
-    // This will cause it to 404 in production, use only if you don't need this route
-    // exportPathMap: async function() {
-    //   return {
-    //     '/': { page: '/' },
-    //     // Add other static paths here
-    //   };
-    // }
-  } : {}),
   
   // Clean distDir before each build
   cleanDistDir: true,
