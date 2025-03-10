@@ -15,7 +15,9 @@
     "pages:build:win": "powershell -File build-pages.ps1",
     "pages:deploy": "bash deploy-with-r2.sh",
     "pages:watch": "npx @cloudflare/next-on-pages --watch",
-    "pages:dev": "npx wrangler pages dev .vercel/output/static --compatibility-flag=nodejs_compat"
+    "pages:dev": "npx wrangler pages dev .vercel/output/static --compatibility-flag=nodejs_compat",
+    "fix:large-files": "bash fix-large-files.sh",
+    "fix:large-files:win": "powershell -File fix-large-files.ps1"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.760.0",

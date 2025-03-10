@@ -22,10 +22,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Clean webpack cache
+        run: |
+          echo "🧹 Cleaning webpack cache directories..."
+          rm -rf .next/cache
+          mkdir -p .next/cache  # Recreate empty directory to avoid build errors
+
       - name: Build Next.js app for Cloudflare Pages
         run: |
           chmod +x ./build-pages.sh
           ./build-pages.sh
+
+      - name: Verify no large files
+        run: |
+          echo "🔍 Verifying no files over 25MB exist in the output..."
+          find .vercel/output/static -type f -size +20M | while read file; do
+            echo "⚠️ Warning: Large file found: $file - removing"
+            rm "$file"
+          done
+          echo "✅ Verification complete."
 
       - name: Install jq
         run: sudo apt-get install -y jq

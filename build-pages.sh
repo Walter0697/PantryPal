@@ -4,6 +4,11 @@ set -e
 # Bash script to build Next.js app for Cloudflare Pages
 echo "📦 Building Next.js app for Cloudflare Pages..."
 
+# Clean webpack cache before building
+echo "🧹 Cleaning webpack cache directories..."
+rm -rf .next/cache
+rm -rf cache
+
 # Set environment variables
 export NODE_ENV=production
 export NEXT_PUBLIC_CLOUDFLARE_PAGES=true
@@ -16,6 +21,11 @@ npm run build
 echo "📂 Step 2: Setting up output directories..."
 VERCEL_OUTPUT_DIR=".vercel/output/static"
 mkdir -p $VERCEL_OUTPUT_DIR
+
+# Remove cache files that might still exist after the build
+echo "🧹 Removing any cache files from the build..."
+rm -rf .next/cache
+rm -rf cache
 
 # Step 3: Copy files to Vercel output structure
 echo "📋 Step 3: Copying files to Vercel output structure..."
@@ -107,5 +117,9 @@ done
 # Step 8: Create archive for R2
 echo "📦 Step 8: Creating archive for R2 upload..."
 tar -czf pages-build.tar.gz -C $VERCEL_OUTPUT_DIR .
+
+# Verify archive size
+ARCHIVE_SIZE=$(du -h pages-build.tar.gz | cut -f1)
+echo "📊 Archive size: $ARCHIVE_SIZE"
 
 echo "✅ Build complete! You can now upload the pages-build.tar.gz file to R2." 

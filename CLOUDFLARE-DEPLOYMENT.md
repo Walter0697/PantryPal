@@ -16,6 +16,27 @@ Cloudflare Pages has a strict file size limit of 25 MiB per file. Next.js builds
 
 This approach ensures our deployments won't fail due to the "Pages only supports files up to 25 MiB in size" error.
 
+### Quick Fix for File Size Issues
+
+If you encounter the "Pages only supports files up to 25 MiB in size" error during deployment, use one of these scripts to quickly fix the issue:
+
+#### For macOS/Linux Users:
+```bash
+# Run the fix script
+./fix-large-files.sh
+```
+
+#### For Windows Users:
+```powershell
+# Run the fix script
+./fix-large-files.ps1
+```
+
+These scripts will:
+1. Remove any existing webpack cache files (*.pack, *.map)
+2. Specifically target the problematic file mentioned in the error
+3. Scan your project for any other large files and offer to remove them
+
 ## Setup Requirements
 
 Before deploying, ensure you have:
@@ -154,9 +175,28 @@ If you have connected your GitHub repository to Cloudflare Pages directly, you s
 
 If you encounter the error "Pages only supports files up to 25 MiB in size":
 
-1. Check that you're using our custom build scripts which exclude large files
-2. Run `find .next -type f -size +20M` to identify any large files in your build output
-3. If necessary, modify the build scripts to exclude additional file types or directories
+1. **Use the fix scripts**: Run either `./fix-large-files.sh` (Linux/macOS) or `./fix-large-files.ps1` (Windows) to automatically remove large files
+2. **Clean webpack cache**: Remove webpack cache with `rm -rf .next/cache cache/webpack` (Linux/macOS) or `Remove-Item -Recurse -Force .next/cache, cache/webpack` (Windows)
+3. **Update next.config.mjs**: Make sure your Next.js config has cache disabled and smaller chunk sizes:
+   ```js
+   webpack: (config) => {
+     config.cache = false;
+     config.optimization.splitChunks = {
+       chunks: 'all',
+       maxSize: 15000000, // 15MB max chunk
+     };
+     return config;
+   }
+   ```
+4. **Use .cfignore**: Add a `.cfignore` file to exclude large files during deployment
+
+### Common Large Files
+
+These are the files that commonly exceed the 25MB limit:
+- `cache/webpack/client-production/0.pack` (most common)
+- `.next/cache/webpack/*/**.pack`
+- Large images or media files in public directory
+- Development bundles in `.next/static/development`
 
 ### Error 1019 (Authentication/Permission Issue)
 

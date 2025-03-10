@@ -1,6 +1,15 @@
 # PowerShell script to build Next.js app for Cloudflare Pages on Windows
 Write-Host "📦 Building Next.js app for Cloudflare Pages..." -ForegroundColor Cyan
 
+# Clean webpack cache before building
+Write-Host "🧹 Cleaning webpack cache directories..." -ForegroundColor Yellow
+if (Test-Path ".next/cache") {
+    Remove-Item -Path ".next/cache" -Recurse -Force
+}
+if (Test-Path "cache") {
+    Remove-Item -Path "cache" -Recurse -Force
+}
+
 # Set environment variables
 $env:NODE_ENV = "production"
 $env:NEXT_PUBLIC_CLOUDFLARE_PAGES = "true"
@@ -12,6 +21,15 @@ npm run build
 if (-not $?) {
     Write-Host "❌ Next.js build failed! Exiting." -ForegroundColor Red
     exit 1
+}
+
+# Remove cache files that might still exist after the build
+Write-Host "🧹 Removing any cache files from the build..." -ForegroundColor Yellow
+if (Test-Path ".next/cache") {
+    Remove-Item -Path ".next/cache" -Recurse -Force
+}
+if (Test-Path "cache") {
+    Remove-Item -Path "cache" -Recurse -Force
 }
 
 # Step 2: Create output directories
@@ -131,5 +149,9 @@ Get-ChildItem -Path $vercelOutputDir -File -Recurse | Where-Object { $_.Length -
 # Step 8: Create archive for R2
 Write-Host "📦 Step 8: Creating archive for R2 upload..." -ForegroundColor Yellow
 Compress-Archive -Path "$vercelOutputDir/*" -DestinationPath "pages-build.zip" -Force
+
+# Verify archive size
+$archiveSize = (Get-Item "pages-build.zip").Length / 1MB
+Write-Host "📊 Archive size: $([Math]::Round($archiveSize, 2)) MB" -ForegroundColor Cyan
 
 Write-Host "✅ Build complete! You can now upload the pages-build.zip file to R2." -ForegroundColor Green 
