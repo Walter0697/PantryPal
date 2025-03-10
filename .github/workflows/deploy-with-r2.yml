@@ -34,32 +34,10 @@ jobs:
         NEXT_PUBLIC_CLOUDFLARE_PAGES: 'true'
         NODE_ENV: 'production'
 
-    - name: Prepare build artifacts
+    - name: Create Worker Script
       run: |
-        # Ensure standalone output directory exists
-        if [ -d ".next/standalone" ]; then
-          echo "Preparing build artifacts for R2 upload"
-          
-          # Copy static and public assets to standalone directory
-          if [ -d ".next/static" ]; then
-            mkdir -p .next/standalone/.next/static
-            cp -R .next/static .next/standalone/.next/
-          fi
-          
-          if [ -d "public" ]; then
-            cp -R public .next/standalone/
-          fi
-          
-          # Remove any large files that might exceed Cloudflare's limits
-          find .next/standalone -name "*.pack" -delete
-          find .next/standalone -name "*.map" -delete
-          
-          # Create or copy the Cloudflare worker script
-          if [ -f "_worker.js" ]; then
-            cp _worker.js .next/standalone/
-          else
-            # Create a basic _worker.js if it doesn't exist
-            cat > .next/standalone/_worker.js << 'EOL'
+        mkdir -p .next/standalone
+        cat > _worker.js << 'EOF'
 // Cloudflare Pages Worker for Next.js
 export default {
   async fetch(request, env) {
@@ -77,14 +55,11 @@ export default {
     }
   }
 };
-EOL
-          fi
-          
-          # Ensure we have a proper server.js file
-          if [ ! -f ".next/standalone/server.js" ]; then
-            echo "Warning: server.js not found in standalone output. Creating a basic one."
-            # Create a basic server.js file that exports a fetch handler
-            cat > .next/standalone/server.js << 'EOL'
+EOF
+    
+    - name: Create Server Script
+      run: |
+        cat > server.js << 'EOF'
 import { createServer } from 'node:http';
 import { Server } from 'next/dist/server/next-server.js';
 
@@ -124,8 +99,31 @@ if (typeof process !== 'undefined') {
     console.log(`> Ready on http://localhost:${port}`);
   });
 }
-EOL
+EOF
+
+    - name: Prepare build artifacts
+      run: |
+        # Ensure standalone output directory exists
+        if [ -d ".next/standalone" ]; then
+          echo "Preparing build artifacts for R2 upload"
+          
+          # Copy static and public assets to standalone directory
+          if [ -d ".next/static" ]; then
+            mkdir -p .next/standalone/.next/static
+            cp -R .next/static .next/standalone/.next/
           fi
+          
+          if [ -d "public" ]; then
+            cp -R public .next/standalone/
+          fi
+          
+          # Remove any large files that might exceed Cloudflare's limits
+          find .next/standalone -name "*.pack" -delete
+          find .next/standalone -name "*.map" -delete
+          
+          # Copy the worker and server scripts
+          cp _worker.js .next/standalone/
+          cp server.js .next/standalone/
           
           # Create artifact archive
           tar -czf build-artifact.tar.gz -C .next/standalone .
