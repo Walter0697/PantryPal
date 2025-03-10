@@ -62,6 +62,14 @@ const EmptyState = ({ onAddClick }: { onAddClick: () => void }) => (
   </div>
 );
 
+// Generate the static parameters for the storage areas
+// This is required for static export with dynamic routes
+export function generateStaticParams() {
+  // For static export, we need at least one route
+  // This ensures the page template gets built
+  return [{ id: 'static-placeholder' }];
+}
+
 export default function StoragePage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const areaIdentifier = params.id;

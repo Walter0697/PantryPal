@@ -38,6 +38,20 @@ const nextConfig = {
     return config;
   },
   
+  // Static export configuration
+  ...(process.env.NEXT_STATIC_EXPORT ? {
+    // For static export, configure route handling
+    trailingSlash: true,
+    // Optionally exclude the dynamic storage route when building for static export
+    // This will cause it to 404 in production, use only if you don't need this route
+    // exportPathMap: async function() {
+    //   return {
+    //     '/': { page: '/' },
+    //     // Add other static paths here
+    //   };
+    // }
+  } : {}),
+  
   // Clean distDir before each build
   cleanDistDir: true,
 };
