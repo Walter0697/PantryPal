@@ -1,20 +1,11 @@
 import { Suspense } from 'react';
 import { getHomeLayout } from '@/util/server-only/initHomeLayout';
 
-// Import the global initialization module
-// This ensures all initialization processes run during server startup
-import { runAllInitializations } from '@/util/server-only/init';
-
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 async function HomeLayoutContent() {
   console.log(`[${new Date().toISOString()}] 🏠 DASHBOARD: Dashboard page component rendering...`);
-  
-  // Optionally run explicit initialization
-  // This is not necessary as imports should trigger initialization
-  // But it's here for demonstration purposes
-  await runAllInitializations();
   
   console.log(`[${new Date().toISOString()}] 🔍 DASHBOARD: Fetching home layout for dashboard...`);
   

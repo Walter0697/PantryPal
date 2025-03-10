@@ -1,6 +1,8 @@
 'use server';
 
-// Just include basic server-side initialization logging
-console.log(`[${new Date().toISOString()}] 🚀 SERVER: Starting application...`);
-console.log(`[${new Date().toISOString()}] 📊 SERVER: Using DynamoDB for data persistence`);
-console.log(`[${new Date().toISOString()}] ✅ SERVER: Initialization complete`);
+// Empty file - initialization removed
+
+// Export a dummy function to avoid import errors in any remaining references
+export async function runAllInitializations() {
+  // Intentionally empty - initialization functionality removed
+}

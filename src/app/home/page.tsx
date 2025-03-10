@@ -7,6 +7,41 @@ import dynamic from 'next/dynamic';
 import { Layout } from 'react-grid-layout';
 import { useAuth } from '../../components/AuthProvider';
 import { getLayouts, saveLayouts, LayoutConfig } from '../../util/storage';
+import TokenDebugger from '../../components/TokenDebugger';
+
+// Validate token on page load
+function validateStoredToken() {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('jwtToken');
+    
+    if (token) {
+      try {
+        // Simple validation - check if token is in correct JWT format
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+          console.error('Invalid token format detected, clearing token');
+          localStorage.removeItem('jwtToken');
+          return false;
+        }
+        
+        // Parse and check expiration
+        const payload = JSON.parse(atob(parts[1]));
+        if (payload.exp && payload.exp * 1000 < Date.now()) {
+          console.error('Expired token detected, clearing token');
+          localStorage.removeItem('jwtToken');
+          return false;
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('Error validating token, clearing token', error);
+        localStorage.removeItem('jwtToken');
+        return false;
+      }
+    }
+  }
+  return false;
+}
 
 // Dynamically import the GridLayout component to avoid SSR issues
 const GridLayout = dynamic(() => import('../../components/GridLayout'), {
@@ -15,7 +50,7 @@ const GridLayout = dynamic(() => import('../../components/GridLayout'), {
 
 export default function HomePage() {
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout, isLoggedIn } = useAuth();
   const [isEditMode, setIsEditMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentLayouts, setCurrentLayouts] = useState<LayoutConfig>({});
@@ -24,24 +59,62 @@ export default function HomePage() {
   // Reference to the GridLayout component
   const gridLayoutRef = useRef<any>(null);
 
+  // Validate token on component mount
+  useEffect(() => {
+    console.log('Home page mounted, validating token...');
+    
+    // This helps ensure middleware and client-side auth are in sync
+    const isTokenValid = validateStoredToken();
+    console.log('Token validation result:', isTokenValid);
+    
+    // If token is not valid and auth thinks we're logged in, force logout
+    if (!isTokenValid && isLoggedIn) {
+      console.log('Token validation failed but auth state is logged in, forcing logout');
+      logout();
+      return;
+    }
+    
+    // If we have no valid token and haven't been redirected yet, manually redirect
+    if (!isTokenValid) {
+      console.log('No valid token found, redirecting to login');
+      router.push('/');
+      return;
+    }
+    
+    console.log('Token is valid, user is authenticated properly');
+  }, [isLoggedIn, logout, router]);
+
   // Load saved layouts on component mount
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
+        console.log('Attempting to load layouts data...');
         const layouts = await getLayouts();
+        console.log('Layouts loaded successfully');
         setCurrentLayouts(layouts);
         // Initialize temporary layouts with the same data
         setTemporaryLayouts(JSON.parse(JSON.stringify(layouts)));
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error loading layouts:', error);
+        // If the error is auth related, you might want to redirect
+        if (error?.toString().includes('unauthorized') || error?.toString().includes('auth')) {
+          console.log('Auth-related error detected, redirecting to login');
+          router.push('/');
+        }
       } finally {
         setIsLoading(false);
       }
     };
     
-    loadData();
-  }, []);
+    // Only load data if we believe we're logged in
+    if (isLoggedIn) {
+      console.log('User is logged in, loading layout data...');
+      loadData();
+    } else {
+      console.log('User is not logged in, skipping data load');
+    }
+  }, [isLoggedIn, router]);
 
   const handleEditClick = () => {
     // Store the current layouts as temporary layouts when entering edit mode
@@ -109,6 +182,9 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto px-4 py-8 relative">
+      {/* Add the token debugger component */}
+      <TokenDebugger />
+      
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">
           Your Home Layout
