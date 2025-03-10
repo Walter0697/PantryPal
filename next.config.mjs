@@ -8,8 +8,14 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   
-  // Add optimizations for Cloudflare Pages
-  output: 'export', // Use export instead of standalone for static output
+  // Add optimizations for Cloudflare Pages without using export
+  // We can't use 'export' with dynamic routes
+  output: 'standalone',
+  
+  // Disable image optimization (use optimized images directly)
+  images: {
+    unoptimized: true,
+  },
   
   // Configure webpack to reduce bundle size
   webpack: (config, { isServer }) => {
@@ -31,11 +37,6 @@ const nextConfig = {
     }
     
     return config;
-  },
-  
-  // Disable image optimization (use optimized images directly)
-  images: {
-    unoptimized: true,
   },
   
   // Clean distDir before each build
