@@ -6,6 +6,16 @@ This document outlines the process for deploying the Next.js application to Clou
 
 We use Cloudflare R2 Storage for artifact storage to overcome size limitations of direct deployments through Cloudflare Pages, especially when using server-side rendering or API routes. This approach gives us more control over the deployment process.
 
+## File Size Limitations
+
+Cloudflare Pages has a strict file size limit of 25 MiB per file. Next.js builds can generate large files, especially webpack cache files (*.pack, *.map) that often exceed this limit. Our custom build scripts handle this by:
+
+1. Excluding large webpack cache files (*.pack, *.map)
+2. Removing any file larger than 20MB from the final build
+3. Creating a minimal bundle that stays within Cloudflare's limits
+
+This approach ensures our deployments won't fail due to the "Pages only supports files up to 25 MiB in size" error.
+
 ## Setup Requirements
 
 Before deploying, ensure you have:
@@ -88,7 +98,8 @@ Due to compatibility issues with `@cloudflare/next-on-pages` on Windows, we've c
 2. Set up the correct directory structure for Cloudflare Pages
 3. Create a simplified worker script that properly handles static assets and routes
 4. Generate a `_routes.json` file for Cloudflare Pages routing
-5. Create an archive ready for upload to R2
+5. **Exclude large files** (*.pack, *.map, and any file >20MB)
+6. Create an archive ready for upload to R2
 
 Available scripts:
 - `build-pages.sh` for macOS/Linux
@@ -138,6 +149,14 @@ If you have connected your GitHub repository to Cloudflare Pages directly, you s
 3. Set "Automatic deployments" to "Disabled"
 
 ## Troubleshooting
+
+### File Size Limits (25 MiB)
+
+If you encounter the error "Pages only supports files up to 25 MiB in size":
+
+1. Check that you're using our custom build scripts which exclude large files
+2. Run `find .next -type f -size +20M` to identify any large files in your build output
+3. If necessary, modify the build scripts to exclude additional file types or directories
 
 ### Error 1019 (Authentication/Permission Issue)
 

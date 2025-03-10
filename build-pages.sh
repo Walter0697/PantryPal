@@ -20,14 +20,23 @@ mkdir -p $VERCEL_OUTPUT_DIR
 # Step 3: Copy files to Vercel output structure
 echo "📋 Step 3: Copying files to Vercel output structure..."
 
-# Copy static files
+# Copy static files (excluding large webpack cache files)
 if [ -d ".next/static" ]; then
+  echo "Copying .next/static files (excluding *.pack and *.map)..."
   mkdir -p "$VERCEL_OUTPUT_DIR/_next/static"
-  cp -R .next/static/* "$VERCEL_OUTPUT_DIR/_next/static/"
+  
+  # Use find to copy only specific file types, excluding large files
+  find .next/static -type f -not -name "*.pack" -not -name "*.map" -exec cp {} "$VERCEL_OUTPUT_DIR/_next/static/" \;
+  
+  # Create directory structure with empty files to maintain paths
+  find .next/static -type d | while read dir; do
+    mkdir -p "$VERCEL_OUTPUT_DIR/$dir"
+  done
 fi
 
 # Copy public files if they exist
 if [ -d "public" ]; then
+  echo "Copying public files..."
   cp -R public/* $VERCEL_OUTPUT_DIR/
 fi
 
@@ -85,8 +94,18 @@ cat > "$VERCEL_OUTPUT_DIR/_routes.json" << 'EOL'
 }
 EOL
 
-# Step 7: Create archive for R2
-echo "📦 Step 7: Creating archive for R2 upload..."
+# Step 7: Generate a minimal bundle by excluding large files
+echo "📦 Step 7: Creating optimized build for Cloudflare..."
+
+# Create a list of files over 20MB to exclude
+echo "🔍 Checking for files over 20MB..."
+find $VERCEL_OUTPUT_DIR -type f -size +20M | while read file; do
+  echo "⚠️ Excluding large file: $file"
+  rm "$file"
+done
+
+# Step 8: Create archive for R2
+echo "📦 Step 8: Creating archive for R2 upload..."
 tar -czf pages-build.tar.gz -C $VERCEL_OUTPUT_DIR .
 
 echo "✅ Build complete! You can now upload the pages-build.tar.gz file to R2." 
