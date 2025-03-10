@@ -27,6 +27,79 @@ if [ -d ".next/standalone" ]; then
   find .next/standalone -name "*.pack" -delete
   find .next/standalone -name "*.map" -delete
   
+  # Create or copy the Cloudflare worker script
+  if [ -f "_worker.js" ]; then
+    cp _worker.js .next/standalone/
+  else
+    # Create a basic _worker.js if it doesn't exist
+    cat > .next/standalone/_worker.js << 'EOL'
+// Cloudflare Pages Worker for Next.js
+export default {
+  async fetch(request, env) {
+    try {
+      // Forward the request to the Next.js server
+      const nextServer = await import('./server.js');
+      
+      // Create a simulated request event for the Next.js server
+      return await nextServer.default.fetch(request, env);
+    } catch (error) {
+      return new Response(`Server Error: ${error.message}`, {
+        status: 500,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+    }
+  }
+};
+EOL
+  fi
+  
+  # Ensure we have a proper server.js file
+  if [ ! -f ".next/standalone/server.js" ]; then
+    echo "Warning: server.js not found in standalone output. Creating a basic one."
+    # Create a basic server.js file that exports a fetch handler
+    cat > .next/standalone/server.js << 'EOL'
+import { createServer } from 'node:http';
+import { Server } from 'next/dist/server/next-server.js';
+
+// Create a fetch handler for the Next.js app
+const nextServer = new Server({
+  hostname: 'localhost',
+  port: Number(process.env.PORT) || 8788,
+  dir: '.',
+  dev: false,
+  customServer: false,
+  conf: {
+  distDir: '.next',
+  output: 'standalone',
+  },
+});
+
+const handler = nextServer.getRequestHandler();
+
+// Create a fetch function for the worker
+export default {
+  fetch: async (request, env) => {
+    // Parse the URL
+    const url = new URL(request.url);
+    
+    // Handle the request
+    return await handler(request, url);
+  }
+};
+
+// For local testing, also export a standard Node.js server
+if (typeof process !== 'undefined') {
+  const port = Number(process.env.PORT) || 8788;
+  createServer((req, res) => {
+    const url = new URL(req.url || '/', `http://${req.headers.host}`);
+    handler(req, res, url);
+  }).listen(port, () => {
+    console.log(`> Ready on http://localhost:${port}`);
+  });
+}
+EOL
+  fi
+  
   # Create artifact archive
   tar -czf build-artifact.tar.gz -C .next/standalone .
 else
@@ -104,6 +177,11 @@ if tar -xzf r2-artifact.tar.gz -C r2-deployment; then
 else
   echo "Error: Failed to extract artifact. See errors above."
   exit 1
+fi
+
+# Verify _worker.js exists
+if [ ! -f "r2-deployment/_worker.js" ]; then
+  echo "Warning: _worker.js not found in extracted files. This may cause 404 errors."
 fi
 
 # 7. Deploy to Cloudflare Pages

@@ -8,9 +8,8 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   
-  // Add optimizations for Cloudflare Pages without using export
-  // We can't use 'export' with dynamic routes
-  output: 'standalone',
+  // Use output: 'export' in static mode, or 'standalone' in server mode 
+  output: process.env.NEXT_STATIC_EXPORT ? 'export' : 'standalone',
   
   // Disable image optimization (use optimized images directly)
   images: {
