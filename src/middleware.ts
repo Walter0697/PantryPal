@@ -4,7 +4,7 @@ import { jwtDecode } from 'jwt-decode';
 
 // List of public paths that don't require authentication
 const PUBLIC_FILE_PATHS = ['/_next', '/favicon.ico', '/images', '/public', '/assets'];
-const PUBLIC_ROUTES = ['/', '/api', '/change-password', '/login'];
+const PUBLIC_ROUTES = ['/', '/api', '/change-password', '/login', '/reset-password'];
 
 // Function to check if a path is public
 function isPublicPath(path: string): boolean {
@@ -14,6 +14,17 @@ function isPublicPath(path: string): boolean {
   
   // Check for exact route matches or routes that start with a public prefix
   return PUBLIC_ROUTES.some(route => 
+    path === route || 
+    path.startsWith(`${route}/`)
+  );
+}
+
+// Protected routes that require authentication
+const PROTECTED_ROUTES = ['/home', '/profile'];
+
+// Special handing for protected pages - common redirection destinations
+function isProtectedPath(path: string): boolean {
+  return PROTECTED_ROUTES.some(route => 
     path === route || 
     path.startsWith(`${route}/`)
   );
@@ -74,8 +85,8 @@ export function middleware(request: NextRequest) {
     console.log('No token found in cookies - middleware cannot access localStorage, only cookies!');
   }
   
-  // Special handing for home - common redirection destination
-  const isHomePath = path === '/home';
+  // Special handling for protected routes - common redirection destinations
+  const isProtected = isProtectedPath(path);
   
   // If no token found or token is invalid, redirect to login page
   if (!token || !isTokenValid(token)) {
@@ -87,10 +98,10 @@ export function middleware(request: NextRequest) {
     // Add a return_url parameter to redirect back after login
     loginUrl.searchParams.set('returnUrl', path);
     
-    // Special handling for the home path to aid debugging
-    if (isHomePath) {
-      console.log('Home path detected with invalid token, adding debug info');
-      loginUrl.searchParams.set('reason', 'invalid_token_for_home');
+    // Special handling for protected routes to aid debugging
+    if (isProtected) {
+      console.log(`Protected path detected with invalid token, adding debug info`);
+      loginUrl.searchParams.set('reason', 'invalid_token_for_protected_route');
       loginUrl.searchParams.set('timestamp', Date.now().toString());
     }
     

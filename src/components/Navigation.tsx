@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
-import { FaUtensils, FaBars, FaSignOutAlt, FaList } from 'react-icons/fa';
+import { FaUtensils, FaBars, FaSignOutAlt, FaList, FaUser } from 'react-icons/fa';
 import { useAuth } from './AuthProvider';
 import { useRouter } from 'next/navigation';
 
@@ -28,6 +28,10 @@ export default function Navigation() {
   const navigateToHome = () => {
     router.push('/home');
   };
+  
+  const navigateToProfile = () => {
+    router.push('/profile');
+  };
 
   return (
     <header className="dark-element border-b border-primary-600 shadow-md">
@@ -42,14 +46,25 @@ export default function Navigation() {
           </div>
           
           {stableIsLoggedIn && (
-            <button
-              onClick={handleLogout}
-              className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white hover:text-secondary-500 px-3 py-1.5 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
-              aria-label="Logout"
-            >
-              <FaSignOutAlt className="text-sm mr-2" />
-              <span className="text-sm font-medium">Logout</span>
-            </button>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={navigateToProfile}
+                className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white hover:text-secondary-500 px-3 py-1.5 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
+                aria-label="Profile"
+              >
+                <FaUser className="text-sm mr-2" />
+                <span className="text-sm font-medium">Profile</span>
+              </button>
+              
+              <button
+                onClick={handleLogout}
+                className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white hover:text-secondary-500 px-3 py-1.5 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
+                aria-label="Logout"
+              >
+                <FaSignOutAlt className="text-sm mr-2" />
+                <span className="text-sm font-medium">Logout</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

@@ -11,6 +11,8 @@ type AuthContextType = {
   login: (token: string, expiresIn: number) => void;
   logout: () => void;
   token: string | null;
+  updateEmailVerificationStatus: (verified: boolean) => void;
+  emailVerified: boolean;
 };
 
 // Create the context with a default value
@@ -19,6 +21,8 @@ const AuthContext = createContext<AuthContextType>({
   login: () => {},
   logout: () => {},
   token: null,
+  updateEmailVerificationStatus: () => {},
+  emailVerified: false,
 });
 
 // Custom hook to use the auth context
@@ -54,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   
@@ -64,7 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Clear localStorage
       localStorage.removeItem('jwtToken');
-      console.log('Cleared localStorage token');
+      localStorage.removeItem('emailVerified');
+      console.log('Cleared localStorage token and verification status');
       
       // Clear cookie by setting it to expire immediately
       document.cookie = 'jwtToken=; path=/; max-age=0; SameSite=Lax';
@@ -83,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Update state
       setToken(null);
       setIsLoggedIn(false);
+      setEmailVerified(false);
       
       // Redirect to login page if not already there
       if (typeof window !== 'undefined' && window.location.pathname !== '/') {
@@ -95,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Even if there's an error, attempt to update state and redirect
       setToken(null);
       setIsLoggedIn(false);
+      setEmailVerified(false);
       
       // Force redirect as a last resort
       if (typeof window !== 'undefined') {
@@ -131,11 +139,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timeoutId);
   }, [logout]);
   
+  // Update email verification status
+  const updateEmailVerificationStatus = useCallback((verified: boolean) => {
+    console.log('Updating email verification status:', verified);
+    setEmailVerified(verified);
+    
+    // Optional: store this status in localStorage for persistence
+    try {
+      localStorage.setItem('emailVerified', String(verified));
+    } catch (error) {
+      console.error('Error storing email verification status:', error);
+    }
+  }, []);
+  
   // Initialize auth state from localStorage
   useEffect(() => {
     // Safe localStorage access
     try {
       const storedToken = getToken();
+      
+      // Also load email verification status
+      try {
+        const storedEmailVerified = localStorage.getItem('emailVerified');
+        if (storedEmailVerified !== null) {
+          setEmailVerified(storedEmailVerified === 'true');
+        }
+      } catch (e) {
+        console.error('Error reading email verification status:', e);
+      }
       
       if (storedToken && isTokenValid(storedToken)) {
         // Token is valid
@@ -281,6 +312,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     logout,
     token,
+    updateEmailVerificationStatus,
+    emailVerified,
   };
   
   // Only render children once authentication state is initialized

@@ -6,7 +6,11 @@ import {
   InitiateAuthCommand,
   AuthFlowType,
   RespondToAuthChallengeCommand,
-  ChallengeNameType
+  ChallengeNameType,
+  ForgotPasswordCommand,
+  ConfirmForgotPasswordCommand,
+  UpdateUserAttributesCommand,
+  GetUserAttributeVerificationCodeCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 
 // Get AWS credentials 
@@ -160,8 +164,6 @@ export async function completeNewPassword(
       return { success: false, message: 'Authentication service misconfigured. Please check environment variables.' };
     }
 
-    console.log('Attempting password change for user:', username);
-    
     // The challenge responses for the username and password
     const challengeResponses: Record<string, string> = {
       USERNAME: username,
@@ -169,23 +171,21 @@ export async function completeNewPassword(
     };
 
     // Only add email-related attributes if email parameter is provided
+    // BUT DO NOT TRY TO SET email_verified directly since it's non-mutable
     if (email) {
       console.log('Email attribute being used:', email);
       
-      // Approach 1: Add email as a direct challenge response attribute
+      // Add the email attribute - but don't try to set email_verified
       challengeResponses['email'] = email;
       
-      // Approach 2: Add email as a userAttributes prefixed challenge response
+      // Add in different formats that Cognito might expect
       challengeResponses['userAttributes.email'] = email;
       
-      // Approach 3: Add email with USER_ATTRIBUTE_PREFIX
-      challengeResponses['attributes.email'] = email;
-      
-      // Approach 4: Add email with different format
+      // JSON format for user attributes - without email_verified
       const userAttributesJson = JSON.stringify({ email: email });
       challengeResponses['userAttributes'] = userAttributesJson;
     } else {
-      console.log('No email provided - not attempting to update email attribute');
+      console.log('No email provided - no email attributes will be set');
     }
 
     console.log('Challenge response keys:', Object.keys(challengeResponses));
@@ -196,7 +196,7 @@ export async function completeNewPassword(
       ChallengeName: 'NEW_PASSWORD_REQUIRED' as ChallengeNameType,
       Session: session,
       ChallengeResponses: challengeResponses,
-      // Only add client metadata if email is provided
+      // Simple client metadata without trying to verify email
       ClientMetadata: email ? { email: email } : undefined
     });
 
@@ -220,11 +220,11 @@ export async function completeNewPassword(
     } catch (cognitoError: any) {
       console.error('Cognito API error:', cognitoError);
       
-      // Try an alternative approach with a different attribute format if there's an error about missing attributes
-      if (cognitoError.message && cognitoError.message.includes('attributes given') && email) {
-        console.log('Trying alternative approach for user attributes');
+      // Try an alternative approach if there's an error
+      if (cognitoError.message && cognitoError.message.includes('attributes given')) {
+        console.log('Trying alternative approach with simpler attributes');
         
-        // Copy challenge responses but without any email attributes
+        // Try again with minimal attributes
         const altChallengeResponses = { 
           USERNAME: username,
           NEW_PASSWORD: newPassword
@@ -235,8 +235,7 @@ export async function completeNewPassword(
             ClientId: COGNITO_CLIENT_ID,
             ChallengeName: 'NEW_PASSWORD_REQUIRED' as ChallengeNameType,
             Session: session,
-            ChallengeResponses: altChallengeResponses,
-            // No client metadata
+            ChallengeResponses: altChallengeResponses
           });
           
           const altResponse = await cognitoClient.send(altCommand);
@@ -244,7 +243,7 @@ export async function completeNewPassword(
           if (altResponse.AuthenticationResult?.IdToken) {
             return {
               success: true,
-              message: 'Password changed successfully with alternative approach!',
+              message: 'Password changed successfully!',
               token: altResponse.AuthenticationResult.IdToken,
               expiresIn: altResponse.AuthenticationResult.ExpiresIn || 3600
             };
@@ -269,6 +268,209 @@ export async function completeNewPassword(
       success: false, 
       message: process.env.NODE_ENV === 'production' 
         ? 'Failed to set new password. Please try again.' 
+        : `Error: ${error.message}` 
+    };
+  }
+}
+
+// Forgot password functionality - this initiates the reset process
+export async function forgotPassword(usernameOrEmail: string) {
+  try {
+    // Validate configuration
+    if (!COGNITO_CLIENT_ID || !COGNITO_USER_POOL_ID) {
+      console.error('Cognito configuration missing or invalid');
+      return { success: false, message: 'Password reset service misconfigured. Please check environment variables.' };
+    }
+
+    // Log attempt
+    console.log('Initiating password reset for:', usernameOrEmail);
+
+    // Create the forgot password command
+    const forgotPasswordCommand = new ForgotPasswordCommand({
+      ClientId: COGNITO_CLIENT_ID,
+      Username: usernameOrEmail // Try with whatever the user entered
+    });
+
+    // Send the command to Cognito
+    await cognitoClient.send(forgotPasswordCommand);
+    
+    // If we get here without an error, the reset was initiated successfully
+    return {
+      success: true, 
+      message: 'Password reset initiated! Check your email for a confirmation code.'
+    };
+  } catch (error: any) {
+    console.error('Error initiating password reset:', error);
+    
+    // Handle specific error cases with user-friendly messages
+    if (error.name === 'UserNotFoundException') {
+      return { 
+        success: false, 
+        message: 'No account found with that username. Please try entering your username exactly as you created it.'
+      };
+    }
+    
+    if (error.message && error.message.includes('no registered/verified email')) {
+      return {
+        success: false,
+        message: 'This account does not have a verified email address. Please go to the Profile page first to add an email address.'
+      };
+    }
+    
+    if (error.name === 'LimitExceededException') {
+      return { 
+        success: false, 
+        message: 'Too many attempts. Please try again later.' 
+      };
+    }
+    
+    // General error message for other cases
+    return { 
+      success: false, 
+      message: process.env.NODE_ENV === 'production' 
+        ? 'Unable to reset password. Please try again later.' 
+        : `Error: ${error.message}` 
+    };
+  }
+}
+
+// Confirm the password reset with the code sent to email
+export async function confirmForgotPassword(
+  username: string, 
+  confirmationCode: string, 
+  newPassword: string
+) {
+  try {
+    // Validate configuration
+    if (!COGNITO_CLIENT_ID || !COGNITO_USER_POOL_ID) {
+      console.error('Cognito configuration missing or invalid');
+      return { success: false, message: 'Password reset service misconfigured. Please check environment variables.' };
+    }
+
+    console.log('Confirming password reset for user:', username);
+
+    // Create the confirm forgot password command
+    const confirmForgotPasswordCommand = new ConfirmForgotPasswordCommand({
+      ClientId: COGNITO_CLIENT_ID,
+      Username: username,
+      ConfirmationCode: confirmationCode,
+      Password: newPassword
+    });
+
+    // Send the command to Cognito
+    await cognitoClient.send(confirmForgotPasswordCommand);
+    
+    // If we get here without an error, the reset was confirmed successfully
+    return {
+      success: true, 
+      message: 'Password has been reset successfully! You can now log in with your new password.'
+    };
+  } catch (error: any) {
+    console.error('Error confirming password reset:', error);
+    
+    // Handle specific error cases with user-friendly messages
+    if (error.name === 'CodeMismatchException') {
+      return { 
+        success: false, 
+        message: 'Invalid verification code. Please check and try again.' 
+      };
+    }
+    
+    if (error.name === 'ExpiredCodeException') {
+      return { 
+        success: false, 
+        message: 'Verification code has expired. Please request a new one.' 
+      };
+    }
+    
+    if (error.name === 'InvalidPasswordException') {
+      return { 
+        success: false, 
+        message: 'Password does not meet requirements. Please use a stronger password.' 
+      };
+    }
+    
+    // General error message for other cases
+    return { 
+      success: false, 
+      message: process.env.NODE_ENV === 'production' 
+        ? 'Unable to reset password. Please try again later.' 
+        : `Error: ${error.message}` 
+    };
+  }
+}
+
+// Update user attributes (like email)
+export async function updateUserEmail(token: string, email: string) {
+  try {
+    // Validate configuration
+    if (!COGNITO_CLIENT_ID || !COGNITO_USER_POOL_ID) {
+      console.error('Cognito configuration missing or invalid');
+      return { success: false, message: 'User update service misconfigured. Please check environment variables.' };
+    }
+
+    console.log('Updating user email to:', email);
+
+    // Create the update user attributes command
+    const updateCommand = new UpdateUserAttributesCommand({
+      AccessToken: token, // Requires a valid access token from the current session
+      UserAttributes: [
+        {
+          Name: 'email',
+          Value: email
+        }
+      ]
+    });
+
+    // Send the command to Cognito
+    await cognitoClient.send(updateCommand);
+    
+    // After updating email, initiate verification
+    try {
+      // Trigger a verification email to be sent
+      const verifyEmailCommand = new GetUserAttributeVerificationCodeCommand({
+        AccessToken: token,
+        AttributeName: 'email'
+      });
+      
+      await cognitoClient.send(verifyEmailCommand);
+      console.log('Verification email sent successfully');
+      
+      // If we get here without an error, the update was successful
+      return {
+        success: true, 
+        message: 'Email updated successfully! Please check your inbox for a verification link.'
+      };
+    } catch (verifyError) {
+      console.error('Error sending verification email:', verifyError);
+      return {
+        success: true, // The email was still updated
+        message: 'Email updated but verification email could not be sent. Try again later.'
+      };
+    }
+  } catch (error: any) {
+    console.error('Error updating user email:', error);
+    
+    // Handle specific error cases with user-friendly messages
+    if (error.name === 'InvalidParameterException') {
+      return { 
+        success: false, 
+        message: 'Invalid email format. Please provide a valid email address.' 
+      };
+    }
+    
+    if (error.name === 'NotAuthorizedException') {
+      return { 
+        success: false, 
+        message: 'You are not authorized to update this user\'s email. Please login again.' 
+      };
+    }
+    
+    // General error message for other cases
+    return { 
+      success: false, 
+      message: process.env.NODE_ENV === 'production' 
+        ? 'Unable to update email. Please try again later.' 
         : `Error: ${error.message}` 
     };
   }

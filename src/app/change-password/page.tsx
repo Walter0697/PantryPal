@@ -108,6 +108,7 @@ export default function ChangePasswordPage() {
       
       if (result.success) {
         toast.success(result.message);
+        
         // Store the JWT token and set login state
         if (result.token && result.expiresIn) {
           login(result.token, result.expiresIn);
@@ -134,9 +135,6 @@ export default function ChangePasswordPage() {
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-md">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">Change Your Password</h1>
-          <p className="mt-2 text-gray-600">
-            You need to set a new password before you can login
-          </p>
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
