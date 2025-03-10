@@ -85,16 +85,31 @@ jobs:
         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+    - name: Extract R2 Artifact for Deployment
+      run: |
+        # Create a temporary directory for extraction
+        mkdir -p r2-deployment
+        
+        # Download the artifact from R2
+        wrangler r2 object get ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file r2-artifact.tar.gz
+        
+        # Extract the artifact
+        tar -xzf r2-artifact.tar.gz -C r2-deployment
+        
+        echo "Extracted R2 artifact for deployment"
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
     - name: Deploy to Cloudflare Pages
       run: |
         # Enable verbose logging for debugging
         export WRANGLER_LOG=debug
         
-        # Create a deployment with the uploaded R2 artifact
-        wrangler pages deployment create \
+        # Deploy using the extracted files from R2
+        wrangler pages deployment create ./r2-deployment \
           --project-name=pantrypal \
           --branch=main \
-          --r2-binding "DEPLOYMENT_ARTIFACT:${{ secrets.R2_BUCKET_NAME }}:${ARTIFACT_PATH}" \
           --commit-hash=${{ github.sha }} \
           --commit-message="${{ github.event.head_commit.message || 'Manual deployment' }}"
         

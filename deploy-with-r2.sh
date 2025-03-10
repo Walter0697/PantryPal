@@ -84,16 +84,41 @@ else
   exit 1
 fi
 
-# 6. Deploy to Cloudflare Pages
+# 6. Extract R2 Artifact for Deployment
+echo "Extracting R2 artifact for deployment..."
+
+# Create a temporary directory for extraction
+mkdir -p r2-deployment
+
+# Download the artifact from R2
+if npx wrangler r2 object get ${R2_BUCKET_NAME}/${ARTIFACT_PATH} --file r2-artifact.tar.gz; then
+  echo "Artifact downloaded from R2"
+else
+  echo "Error: Failed to download artifact from R2. See errors above."
+  exit 1
+fi
+
+# Extract the artifact
+if tar -xzf r2-artifact.tar.gz -C r2-deployment; then
+  echo "Artifact extracted for deployment"
+else
+  echo "Error: Failed to extract artifact. See errors above."
+  exit 1
+fi
+
+# 7. Deploy to Cloudflare Pages
 echo "Deploying to Cloudflare Pages..."
-if npx wrangler pages deployment create \
+if npx wrangler pages deployment create ./r2-deployment \
   --project-name=pantrypal \
   --branch=main \
-  --r2-binding "DEPLOYMENT_ARTIFACT:${R2_BUCKET_NAME}:${ARTIFACT_PATH}" \
   --commit-message="Manual deployment via deploy-with-r2.sh script"; then
   
   echo "Deployment complete! Your site should be live soon."
 else
   echo "Error: Deployment to Cloudflare Pages failed. See errors above."
   exit 1
-fi 
+fi
+
+# Clean up
+echo "Cleaning up temporary files..."
+rm -rf r2-deployment r2-artifact.tar.gz 

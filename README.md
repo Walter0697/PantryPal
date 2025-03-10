@@ -25,7 +25,15 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 This project uses a two-step deployment process to handle large Next.js builds:
 
 1. Build artifacts are uploaded to Cloudflare R2 storage
-2. Cloudflare Pages pulls the artifacts from R2 for deployment
+2. The artifacts are downloaded and then deployed to Cloudflare Pages
+
+The process works as follows:
+- The Next.js app is built using the standalone output
+- The build artifacts are compressed and uploaded to R2
+- The artifacts are then downloaded and extracted
+- The extracted files are deployed to Cloudflare Pages
+
+This approach overcomes the size limitations of direct Cloudflare Pages deployments.
 
 ### Setup Required Secrets
 
