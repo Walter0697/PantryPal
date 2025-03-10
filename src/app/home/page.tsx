@@ -7,7 +7,6 @@ import dynamic from 'next/dynamic';
 import { Layout } from 'react-grid-layout';
 import { useAuth } from '../../components/AuthProvider';
 import { getLayouts, saveLayouts, LayoutConfig } from '../../util/storage';
-import TokenDebugger from '../../components/TokenDebugger';
 
 // Validate token on page load
 function validateStoredToken() {
@@ -182,9 +181,6 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto px-4 py-8 relative">
-      {/* Add the token debugger component */}
-      <TokenDebugger />
-      
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">
           Your Home Layout

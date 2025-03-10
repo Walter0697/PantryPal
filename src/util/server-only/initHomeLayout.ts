@@ -155,6 +155,4 @@ console.log(`[${new Date().toISOString()}] 🚀 HOME LAYOUT: Module loaded, init
 
 // Initialize the home layout when this module is imported
 // This will run once when the server starts
-initializeHomeLayout()
-  .then(() => console.log(`[${new Date().toISOString()}] 🎉 HOME LAYOUT: Initialization complete! The home layout is ready.`))
-  .catch(error => console.error(`[${new Date().toISOString()}] 💥 HOME LAYOUT: Initialization failed with error:`, error)); 
+initializeHomeLayout(); 

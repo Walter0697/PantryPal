@@ -524,8 +524,6 @@ function LoginPageContent() {
 
   return (
     <div className="flex-grow flex flex-col items-center justify-center p-4">
-      <RedirectHelper />
-      
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
@@ -988,7 +986,7 @@ export default function LoginPage() {
   }, []);
   
   return (
-    <>
+    <div>
       {recaptchaError && (
         <div className="fixed top-0 left-0 right-0 bg-red-600 text-white text-center p-2 z-50">
           reCAPTCHA Error: {recaptchaError}
@@ -1015,6 +1013,6 @@ export default function LoginPage() {
       >
         <LoginPageContent />
       </GoogleReCaptchaProvider>
-    </>
+    </div>
   );
 }

@@ -5,15 +5,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 async function HomeLayoutContent() {
-  console.log(`[${new Date().toISOString()}] 🏠 DASHBOARD: Dashboard page component rendering...`);
-  
-  console.log(`[${new Date().toISOString()}] 🔍 DASHBOARD: Fetching home layout for dashboard...`);
-  
-  // This will use the layout that was initialized on server start
   const homeLayout = await getHomeLayout('default');
   
   if (!homeLayout) {
-    console.log(`[${new Date().toISOString()}] ⚠️ DASHBOARD: No home layout found!`);
     return (
       <div className="p-6 bg-red-100 border border-red-400 text-red-700 rounded">
         <h2 className="text-xl font-bold">Error loading home layout</h2>
@@ -21,8 +15,6 @@ async function HomeLayoutContent() {
       </div>
     );
   }
-  
-  console.log(`[${new Date().toISOString()}] ✅ DASHBOARD: Home layout loaded successfully. Rendering ${homeLayout.layout.length} widgets.`);
   
   return (
     <div className="p-6">
@@ -53,8 +45,6 @@ async function HomeLayoutContent() {
 }
 
 export default function DashboardPage() {
-  console.log(`[${new Date().toISOString()}] 🚀 DASHBOARD: Dashboard page loading...`);
-  
   return (
     <Suspense fallback={<div className="p-6">Loading dashboard layout...</div>}>
       <HomeLayoutContent />
