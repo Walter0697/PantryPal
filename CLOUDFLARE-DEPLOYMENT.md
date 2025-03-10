@@ -6,6 +6,23 @@ This document outlines the process for deploying the Next.js application to Clou
 
 We use Cloudflare R2 Storage for artifact storage to overcome size limitations of direct deployments through Cloudflare Pages, especially when using server-side rendering or API routes. This approach gives us more control over the deployment process.
 
+## Important: Wrangler Configuration
+
+Cloudflare Pages requires a valid `wrangler.toml` file with the `pages_build_output_dir` property set correctly. Our deployment scripts automatically create or update this file, but if you see this error:
+
+```
+A wrangler.toml file was found but it does not appear to be valid.
+```
+
+Make sure the file contains:
+```toml
+# Cloudflare Pages configuration
+name = "your-project-name"  # Match your Cloudflare project name
+
+# Set the build output directory for Pages (this is critical)
+pages_build_output_dir = ".vercel/output/static"
+```
+
 ## Important: Build Output Directory Configuration
 
 In your Cloudflare Pages project settings, make sure you set:
@@ -18,7 +35,7 @@ If you see the error "Output directory '.vercel/output/static' not found", it me
 
 ## Important: Configuring Project Name
 
-The deployment scripts require the correct Cloudflare Pages project name, which may not match your repository name. By default, the scripts use `pantrypal` as the project name.
+The deployment scripts require the correct Cloudflare Pages project name, which may not match your repository name. By default, the scripts use `stock-recorder` as the project name.
 
 To specify your Cloudflare Pages project name:
 
@@ -78,7 +95,7 @@ The following environment variables must be set for deployments:
 - `CLOUDFLARE_API_TOKEN` - Your Cloudflare API token
 - `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare account ID
 - `R2_BUCKET_NAME` - The name of your R2 bucket
-- `CLOUDFLARE_PAGES_PROJECT` - Your Cloudflare Pages project name (default: "pantrypal")
+- `CLOUDFLARE_PAGES_PROJECT` - Your Cloudflare Pages project name (default: "stock-recorder")
 
 ## Deployment Options
 
@@ -91,7 +108,7 @@ For automated deployments:
    - `CLOUDFLARE_API_TOKEN`
    - `CLOUDFLARE_ACCOUNT_ID`
    - `R2_BUCKET_NAME`
-   - `CLOUDFLARE_PAGES_PROJECT` (optional, defaults to "pantrypal")
+   - `CLOUDFLARE_PAGES_PROJECT` (optional, defaults to "stock-recorder")
 2. Push changes to the `main` or `master` branch to trigger the deployment
 
 The workflow in `.github/workflows/deploy-with-r2.yml` handles building the application, uploading the build artifacts to R2, and deploying to Cloudflare Pages.
@@ -105,7 +122,7 @@ The workflow in `.github/workflows/deploy-with-r2.yml` handles building the appl
 export CLOUDFLARE_API_TOKEN=your_api_token
 export CLOUDFLARE_ACCOUNT_ID=your_account_id
 export R2_BUCKET_NAME=your_bucket_name
-export CLOUDFLARE_PAGES_PROJECT=your_project_name  # Optional, defaults to "pantrypal"
+export CLOUDFLARE_PAGES_PROJECT=your_project_name  # Optional, defaults to "stock-recorder"
 
 # Run the deployment script
 ./deploy-with-r2.sh
@@ -118,7 +135,7 @@ export CLOUDFLARE_PAGES_PROJECT=your_project_name  # Optional, defaults to "pant
 $env:CLOUDFLARE_API_TOKEN = "your_api_token"
 $env:CLOUDFLARE_ACCOUNT_ID = "your_account_id"
 $env:R2_BUCKET_NAME = "your_bucket_name"
-$env:CLOUDFLARE_PAGES_PROJECT = "your_project_name"  # Optional, defaults to "pantrypal"
+$env:CLOUDFLARE_PAGES_PROJECT = "your_project_name"  # Optional, defaults to "stock-recorder"
 
 # Run the build script
 ./build-pages.ps1
@@ -224,6 +241,16 @@ If you have connected your GitHub repository to Cloudflare Pages directly, you s
 3. Set "Automatic deployments" to "Disabled"
 
 ## Troubleshooting
+
+### Invalid wrangler.toml Error
+
+If you see the error "A wrangler.toml file was found but it does not appear to be valid":
+
+1. **Check that your wrangler.toml file contains the required properties**: The most critical property is `pages_build_output_dir`.
+
+2. **Let the deployment script handle it**: Our updated deployment scripts will automatically create or update the wrangler.toml file with the correct configuration.
+
+3. **Verify the file syntax**: Make sure there are no syntax errors in the TOML format.
 
 ### "Output directory '.vercel/output/static' not found" Error
 

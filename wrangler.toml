@@ -1,22 +1,22 @@
 # Cloudflare Pages configuration
-name = "pantrypal"
+name = "stock-recorder"  # Make sure this matches your project name in Cloudflare
 
-# Build command settings
+# Build command settings - not used in our deployment but kept for direct Wrangler usage
 [build]
-command = "npm install --legacy-peer-deps && NEXT_PUBLIC_CLOUDFLARE_PAGES=true NODE_ENV=production npm run build"
+command = "npm run build"
 
-# Set the build output directory for Pages (required)
-pages_build_output_dir = ".next/standalone"
+# Set the build output directory for Pages (this is critical)
+pages_build_output_dir = ".vercel/output/static"
 
 # Build environment settings
 [build.environment]
-NODE_VERSION = "20.10.0"
-NPM_VERSION = "10.2.3"
+NODE_VERSION = "18.0.0"
+NPM_VERSION = "9.6.7"
 NODE_COMPAT = "true"
 
-# Upload settings
+# Define site configuration
 [site]
-bucket = ".next/standalone"
+bucket = ".vercel/output/static"
 
 # The directory where your built assets will be placed
 [build.upload]
@@ -24,9 +24,16 @@ format = "directory"
 # Exclude cache files and other large files
 exclude = [
   ".next/cache/**",
+  "cache/**",
   "**/*.pack",
   "**/*.map",
   "node_modules/**",
   ".git/**",
   ".next/types/**"
-] 
+]
+
+# Worker configuration
+[worker]
+compatibility_date = "2023-10-30"
+compatibility_flags = ["streams_enable_constructors"]
+usage_model = "bundled" 

@@ -11,11 +11,47 @@ fi
 # Set project name (allow override via environment variable)
 if [ -z "$CLOUDFLARE_PAGES_PROJECT" ]; then
   # Default project name - replace with your actual Cloudflare Pages project name
-  CLOUDFLARE_PAGES_PROJECT="pantrypal"
+  CLOUDFLARE_PAGES_PROJECT="stock-recorder"
   echo "Using default project name: $CLOUDFLARE_PAGES_PROJECT"
   echo "You can override this by setting the CLOUDFLARE_PAGES_PROJECT environment variable"
 else
   echo "Using project name from environment: $CLOUDFLARE_PAGES_PROJECT"
+fi
+
+# Verify wrangler.toml is valid
+echo "🔍 Checking wrangler.toml configuration..."
+if [ ! -f "wrangler.toml" ]; then
+  echo "⚠️ wrangler.toml not found - creating it"
+  cat > wrangler.toml << EOF
+# Cloudflare Pages configuration
+name = "$CLOUDFLARE_PAGES_PROJECT"
+
+# Set the build output directory for Pages (this is critical)
+pages_build_output_dir = ".vercel/output/static"
+
+# Build environment settings
+[build.environment]
+NODE_VERSION = "18.0.0"
+NPM_VERSION = "9.6.7"
+NODE_COMPAT = "true"
+
+# Define site configuration
+[site]
+bucket = ".vercel/output/static"
+
+# Worker configuration
+[worker]
+compatibility_date = "2023-10-30"
+compatibility_flags = ["streams_enable_constructors"]
+usage_model = "bundled"
+EOF
+  echo "✅ Created wrangler.toml"
+else
+  echo "✅ wrangler.toml exists"
+  # Update project name in wrangler.toml
+  sed -i.bak "s/^name = .*$/name = \"$CLOUDFLARE_PAGES_PROJECT\"/" wrangler.toml
+  rm -f wrangler.toml.bak
+  echo "✅ Updated project name in wrangler.toml"
 fi
 
 echo "🚀 Starting deployment process to Cloudflare Pages..."
