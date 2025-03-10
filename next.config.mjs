@@ -8,10 +8,6 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   
-  // Use standalone output mode (NOT static export)
-  // This creates a self-contained Node.js server
-  output: 'standalone',
-  
   // Disable image optimization (use optimized images directly)
   images: {
     unoptimized: true,
