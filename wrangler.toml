@@ -2,15 +2,24 @@
 name = "pantrypal"
 
 [build]
-command = "npm install --legacy-peer-deps && npm run build"
+command = "npm install --legacy-peer-deps && NEXT_PUBLIC_CLOUDFLARE_PAGES=true npm run build"
 
 # The directory where your built assets will be placed
 [build.upload]
 format = "directory"
+# Exclude cache files and other large files
+exclude = [
+  ".next/cache/**",
+  "**/*.pack",
+  "**/*.map",
+  "node_modules/**",
+  ".git/**",
+  ".next/types/**"
+]
 
 # Required for Cloudflare Pages
 [site]
-bucket = ".next"
+bucket = ".next/standalone"
 
 # Set the build output directory for Pages
 [build.environment]
@@ -19,4 +28,4 @@ NPM_VERSION = "10.2.3"
 NODE_COMPAT = "true"
 
 # This is the key parameter for Cloudflare Pages
-pages_build_output_dir = ".next" 
+pages_build_output_dir = ".next/standalone" 
