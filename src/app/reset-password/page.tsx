@@ -147,7 +147,7 @@ export default function ResetPasswordPage() {
                 <ul className="list-disc list-inside text-xs text-gray-300 space-y-1">
                   <li>Enter your <span className="text-white font-medium">username</span> (not email)</li>
                   <li>Your account must have a verified email address</li>
-                  <li>If you get an error, visit your profile page first to add your email</li>
+                  <li>Contact support if you need to verify your email address</li>
                 </ul>
               </div>
             </div>

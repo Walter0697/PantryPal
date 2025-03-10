@@ -20,7 +20,7 @@ function isPublicPath(path: string): boolean {
 }
 
 // Protected routes that require authentication
-const PROTECTED_ROUTES = ['/home', '/profile'];
+const PROTECTED_ROUTES = ['/home'];
 
 // Special handing for protected pages - common redirection destinations
 function isProtectedPath(path: string): boolean {

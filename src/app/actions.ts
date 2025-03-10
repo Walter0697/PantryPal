@@ -313,7 +313,7 @@ export async function forgotPassword(usernameOrEmail: string) {
     if (error.message && error.message.includes('no registered/verified email')) {
       return {
         success: false,
-        message: 'This account does not have a verified email address. Please go to the Profile page first to add an email address.'
+        message: 'This account does not have a verified email address. Please contact support to verify your email.'
       };
     }
     

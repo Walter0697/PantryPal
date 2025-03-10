@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { authenticate, completeNewPassword, forgotPassword, confirmForgotPassword } from './actions';
 import { useAuth } from '../components/AuthProvider';
 import RedirectHelper from '../components/RedirectHelper';
+import PasswordInput from '../components/PasswordInput';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -394,21 +395,18 @@ export default function LoginPage() {
               <label htmlFor="password" className="block text-gray-200 text-sm font-medium mb-2">
                 Password
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FaLock className="text-primary-400" />
-                </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="w-full pl-10 pr-3 py-2 bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  required
-                />
-              </div>
+              <PasswordInput
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required={true}
+                autoComplete="current-password"
+                labelClassName="block text-gray-200 text-sm font-medium mb-2"
+                inputClassName="bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                iconClassName="text-primary-400"
+                toggleClassName="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-primary-400 hover:text-secondary-500"
+              />
             </div>
 
             <div className="flex flex-col space-y-4">
@@ -467,40 +465,36 @@ export default function LoginPage() {
               <label htmlFor="newPassword" className="block text-gray-200 text-sm font-medium mb-2">
                 New Password
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FaLock className="text-primary-400" />
-                </div>
-                <input
-                  id="newPassword"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  className="w-full pl-10 pr-3 py-2 bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  required
-                />
-              </div>
+              <PasswordInput
+                id="newPassword"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                required={true}
+                autoComplete="new-password"
+                labelClassName="block text-gray-200 text-sm font-medium mb-2"
+                inputClassName="bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                iconClassName="text-primary-400"
+                toggleClassName="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-primary-400 hover:text-secondary-500"
+              />
             </div>
             
             <div className="mb-6">
               <label htmlFor="confirmPassword" className="block text-gray-200 text-sm font-medium mb-2">
                 Confirm Password
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FaLock className="text-primary-400" />
-                </div>
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  className="w-full pl-10 pr-3 py-2 bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  required
-                />
-              </div>
+              <PasswordInput
+                id="confirmPassword"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                required={true}
+                autoComplete="new-password"
+                labelClassName="block text-gray-200 text-sm font-medium mb-2"
+                inputClassName="bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                iconClassName="text-primary-400"
+                toggleClassName="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-primary-400 hover:text-secondary-500"
+              />
             </div>
             
             <div className="flex flex-col space-y-4">
@@ -553,7 +547,7 @@ export default function LoginPage() {
               </div>
               <div className="mt-2 text-xs text-gray-400">
                 <p>You must have a verified email address to reset your password.</p>
-                <p className="mt-1">If you get an error, go to Profile to add your email first.</p>
+                <p className="mt-1">Contact support if you need to verify your email address.</p>
               </div>
             </div>
             
@@ -611,40 +605,36 @@ export default function LoginPage() {
               <label htmlFor="resetPassword" className="block text-gray-200 text-sm font-medium mb-2">
                 New Password
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FaLock className="text-primary-400" />
-                </div>
-                <input
-                  id="resetPassword"
-                  type="password"
-                  value={resetPassword}
-                  onChange={(e) => setResetPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  className="w-full pl-10 pr-3 py-2 bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  required
-                />
-              </div>
+              <PasswordInput
+                id="resetPassword"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                placeholder="Enter new password"
+                required={true}
+                autoComplete="new-password"
+                labelClassName="block text-gray-200 text-sm font-medium mb-2"
+                inputClassName="bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                iconClassName="text-primary-400"
+                toggleClassName="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-primary-400 hover:text-secondary-500"
+              />
             </div>
             
             <div className="mb-6">
               <label htmlFor="confirmResetPassword" className="block text-gray-200 text-sm font-medium mb-2">
                 Confirm Password
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FaLock className="text-primary-400" />
-                </div>
-                <input
-                  id="confirmResetPassword"
-                  type="password"
-                  value={confirmResetPassword}
-                  onChange={(e) => setConfirmResetPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  className="w-full pl-10 pr-3 py-2 bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  required
-                />
-              </div>
+              <PasswordInput
+                id="confirmResetPassword"
+                value={confirmResetPassword}
+                onChange={(e) => setConfirmResetPassword(e.target.value)}
+                placeholder="Confirm new password"
+                required={true}
+                autoComplete="new-password"
+                labelClassName="block text-gray-200 text-sm font-medium mb-2"
+                inputClassName="bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                iconClassName="text-primary-400"
+                toggleClassName="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-primary-400 hover:text-secondary-500"
+              />
             </div>
             
             <div className="flex flex-col space-y-4">

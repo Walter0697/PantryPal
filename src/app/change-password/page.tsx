@@ -6,6 +6,7 @@ import { FaLock, FaUserShield } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { completeNewPassword } from '../actions';
 import { useAuth } from '../../components/AuthProvider';
+import PasswordInput from '../../components/PasswordInput';
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -162,20 +163,15 @@ export default function ChangePasswordPage() {
             <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
               New Password
             </label>
-            <div className="mt-1 relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                <FaLock />
-              </span>
-              <input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your new password"
-              />
-            </div>
+            <PasswordInput
+              id="newPassword"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Enter your new password"
+              required={true}
+              autoComplete="new-password"
+              inputWrapperClassName="mt-1 relative"
+            />
           </div>
           
           {/* Confirm Password */}
@@ -183,20 +179,15 @@ export default function ChangePasswordPage() {
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
               Confirm Password
             </label>
-            <div className="mt-1 relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                <FaLock />
-              </span>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Confirm your new password"
-              />
-            </div>
+            <PasswordInput
+              id="confirmPassword"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm your new password"
+              required={true}
+              autoComplete="new-password"
+              inputWrapperClassName="mt-1 relative"
+            />
           </div>
           
           <div>
