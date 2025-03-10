@@ -53,22 +53,47 @@ if [ -z "$R2_BUCKET_NAME" ]; then
   exit 1
 fi
 
-# 4. Upload to R2
+# 4. Install and verify wrangler
+echo "Setting up wrangler..."
+if ! command -v wrangler &> /dev/null; then
+  echo "Wrangler not found. Installing wrangler globally..."
+  npm install -g wrangler
+fi
+
+# Verify wrangler is working
+echo "Verifying wrangler installation and authentication..."
+if ! wrangler whoami; then
+  echo "Error: Wrangler authentication failed. Please check your CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID."
+  exit 1
+fi
+
+# 5. Upload to R2
 echo "Uploading to Cloudflare R2..."
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
 ARTIFACT_PATH="builds/stock-recorder-${TIMESTAMP}.tar.gz"
 
+# Create verbose logs for debugging
+echo "Running wrangler with debug output..."
+export WRANGLER_LOG=debug
+
 # Upload to R2 bucket using wrangler
-npx wrangler r2 object put ${R2_BUCKET_NAME}/${ARTIFACT_PATH} --file build-artifact.tar.gz
+if npx wrangler r2 object put ${R2_BUCKET_NAME}/${ARTIFACT_PATH} --file build-artifact.tar.gz; then
+  echo "Artifact successfully uploaded to R2: ${ARTIFACT_PATH}"
+else
+  echo "Error: Failed to upload artifact to R2. See errors above."
+  exit 1
+fi
 
-echo "Artifact uploaded to R2: ${ARTIFACT_PATH}"
-
-# 5. Deploy to Cloudflare Pages
+# 6. Deploy to Cloudflare Pages
 echo "Deploying to Cloudflare Pages..."
-npx wrangler pages deployment create \
+if npx wrangler pages deployment create \
   --project-name=pantrypal \
   --branch=main \
   --r2-binding "DEPLOYMENT_ARTIFACT:${R2_BUCKET_NAME}:${ARTIFACT_PATH}" \
-  --commit-message="Manual deployment via deploy-with-r2.sh script"
-
-echo "Deployment complete! Your site should be live soon." 
+  --commit-message="Manual deployment via deploy-with-r2.sh script"; then
+  
+  echo "Deployment complete! Your site should be live soon."
+else
+  echo "Error: Deployment to Cloudflare Pages failed. See errors above."
+  exit 1
+fi 

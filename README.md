@@ -49,6 +49,19 @@ export R2_BUCKET_NAME=your_bucket_name
 ./deploy-with-r2.sh
 ```
 
+### Disabling Automatic Cloudflare Pages Deployments
+
+To ensure only the R2 deployment method is used (and prevent duplicate deployments), follow these steps:
+
+1. **Log in to the Cloudflare Dashboard** at [https://dash.cloudflare.com/](https://dash.cloudflare.com/)
+2. **Navigate to Pages** and select your project
+3. **Access Project Settings** by clicking on the "Settings" tab
+4. **Find the "Builds & deployments" section**
+5. **Disable GitHub Integration** by toggling off "Enable GitHub deployments" or clicking "Disconnect" on your GitHub repository connection
+6. **Save your changes**
+
+Alternatively, you can change the Production branch to a non-existent branch name (like "manual-deploy-only") to prevent automatic deployments while keeping the GitHub integration.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
