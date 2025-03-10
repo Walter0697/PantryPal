@@ -20,6 +20,35 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Deployment
+
+This project uses a two-step deployment process to handle large Next.js builds:
+
+1. Build artifacts are uploaded to Cloudflare R2 storage
+2. Cloudflare Pages pulls the artifacts from R2 for deployment
+
+### Setup Required Secrets
+
+For GitHub Actions deployment, add these secrets to your repository:
+
+- `CLOUDFLARE_API_TOKEN`: Your Cloudflare API token with R2 and Pages permissions
+- `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare account ID
+- `R2_BUCKET_NAME`: The name of your R2 bucket for artifacts
+
+### Manual Deployment
+
+To deploy manually, use the provided script:
+
+```bash
+# Set required environment variables
+export CLOUDFLARE_API_TOKEN=your_token
+export CLOUDFLARE_ACCOUNT_ID=your_account_id
+export R2_BUCKET_NAME=your_bucket_name
+
+# Run the deployment script
+./deploy-with-r2.sh
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

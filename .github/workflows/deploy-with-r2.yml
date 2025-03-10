@@ -1,0 +1,97 @@
+name: Build, Upload to R2, and Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build
+      run: npm run build
+      env:
+        # Add minimal env vars needed for build
+        AWS_REGION: 'us-east-1'
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || 'dummy-key-for-build' }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || 'dummy-secret-for-build' }}
+        COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID || 'dummy-pool-id' }}
+        COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID || 'dummyclientid' }}
+        NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${{ secrets.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || 'dummy-recaptcha-key' }}
+        NEXT_PUBLIC_CLOUDFLARE_PAGES: 'true'
+        NODE_ENV: 'production'
+
+    - name: Prepare build artifacts
+      run: |
+        # Ensure standalone output directory exists
+        if [ -d ".next/standalone" ]; then
+          echo "Preparing build artifacts for R2 upload"
+          
+          # Copy static and public assets to standalone directory
+          if [ -d ".next/static" ]; then
+            mkdir -p .next/standalone/.next/static
+            cp -R .next/static .next/standalone/.next/
+          fi
+          
+          if [ -d "public" ]; then
+            cp -R public .next/standalone/
+          fi
+          
+          # Remove any large files that might exceed Cloudflare's limits
+          find .next/standalone -name "*.pack" -delete
+          find .next/standalone -name "*.map" -delete
+          
+          # Create artifact archive
+          tar -czf build-artifact.tar.gz -C .next/standalone .
+        else
+          echo "Error: Standalone directory not found. Build may have failed."
+          exit 1
+        fi
+
+    - name: Setup Wrangler
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    - name: Upload to R2
+      run: |
+        TIMESTAMP=$(date +%Y%m%d%H%M%S)
+        ARTIFACT_PATH="builds/stock-recorder-${TIMESTAMP}.tar.gz"
+        echo "ARTIFACT_PATH=${ARTIFACT_PATH}" >> $GITHUB_ENV
+        
+        # Upload to R2 bucket
+        wrangler r2 object put ${{ secrets.R2_BUCKET_NAME }}/${ARTIFACT_PATH} --file build-artifact.tar.gz
+        
+        echo "Artifact uploaded to R2: ${ARTIFACT_PATH}"
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    - name: Deploy to Cloudflare Pages
+      run: |
+        # Create a deployment with the uploaded R2 artifact
+        wrangler pages deployment create \
+          --project-name=pantrypal \
+          --branch=main \
+          --r2-binding "DEPLOYMENT_ARTIFACT:${{ secrets.R2_BUCKET_NAME }}:${ARTIFACT_PATH}" \
+          --commit-hash=${{ github.sha }} \
+          --commit-message="${{ github.event.head_commit.message || 'Manual deployment' }}"
+        
+        echo "Deployment initiated using artifact from R2"
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }} 
