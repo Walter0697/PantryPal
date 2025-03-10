@@ -7,24 +7,27 @@ npm install --legacy-peer-deps
 # Set environment variable to indicate we're on Cloudflare Pages
 export NEXT_PUBLIC_CLOUDFLARE_PAGES=true
 
-# Build with production optimization 
+# Build with static export optimization
 npm run build
 
-# If standalone output was generated
-if [ -d ".next/standalone" ]; then
-  echo "Standalone build detected, preparing for Cloudflare Pages"
+# Check if output directory exists
+if [ -d "out" ]; then
+  echo "Static export detected in 'out' directory"
   
-  # Copy public and static files to standalone directory
-  if [ -d ".next/static" ]; then
-    mkdir -p .next/standalone/.next/static
-    cp -R .next/static .next/standalone/.next/
-  fi
+  # Create a .nojekyll file to prevent GitHub Pages from ignoring files starting with underscores
+  touch out/.nojekyll
   
-  # Remove any large files that might exceed Cloudflare's limits
-  find .next/standalone -name "*.pack" -delete
-  find .next/standalone -name "*.map" -delete
-  
+  # Add a simple _headers file for Cloudflare Pages to set cache headers
+  cat > out/_headers << EOL
+/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+EOL
+
   echo "Build preparation complete"
 else
-  echo "Warning: Standalone build directory not found"
+  echo "Warning: 'out' directory not found. Build may have failed."
+  exit 1
 fi 
