@@ -50,7 +50,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT || 'pantrypal' }}
         run: |
+          # Print project name for debugging
+          echo "Using Cloudflare Pages project name: $CLOUDFLARE_PAGES_PROJECT"
+          
           # Upload to R2 bucket
           echo "Uploading build archive to R2 bucket..."
           curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$R2_BUCKET_NAME/objects/pages-build.tar.gz" \
@@ -60,16 +64,22 @@ jobs:
 
           # Create deployment
           echo "Creating deployment..."
-          DEPLOY_RESPONSE=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/stock-recorder/deployments" \
+          DEPLOY_RESPONSE=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$CLOUDFLARE_PAGES_PROJECT/deployments" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" \
             --data "{\"production\": {\"r2_bucket\": \"$R2_BUCKET_NAME\", \"r2_object\": \"pages-build.tar.gz\"}}")
           
           echo "Deployment response: $DEPLOY_RESPONSE"
           
+          # Check if deployment was successful
+          if echo "$DEPLOY_RESPONSE" | grep -q '"success":false'; then
+            echo "❌ Deployment failed. See error details above."
+            exit 1
+          fi
+          
           # Extract deployment URL and ID
-          DEPLOY_URL=$(echo $DEPLOY_RESPONSE | jq -r '.result.url')
-          DEPLOY_ID=$(echo $DEPLOY_RESPONSE | jq -r '.result.id')
+          DEPLOY_URL=$(echo $DEPLOY_RESPONSE | jq -r '.result.url // "Not available"')
+          DEPLOY_ID=$(echo $DEPLOY_RESPONSE | jq -r '.result.id // "Not available"')
           
           echo "Deployment URL: $DEPLOY_URL"
           echo "Deployment ID: $DEPLOY_ID"
@@ -80,7 +90,7 @@ jobs:
           
           # Set worker permissions
           echo "Setting worker permissions..."
-          WORKER_CONFIG_RESPONSE=$(curl -X PATCH "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/stock-recorder/deployments/latest" \
+          WORKER_CONFIG_RESPONSE=$(curl -X PATCH "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$CLOUDFLARE_PAGES_PROJECT/deployments/latest" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" \
             --data '{"deployment_configs":{"production":{"compatibility_flags":["streams_enable_constructors"],"compatibility_date":"2023-10-30","usage_model":"bundled"}}}')

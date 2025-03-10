@@ -6,6 +6,24 @@ This document outlines the process for deploying the Next.js application to Clou
 
 We use Cloudflare R2 Storage for artifact storage to overcome size limitations of direct deployments through Cloudflare Pages, especially when using server-side rendering or API routes. This approach gives us more control over the deployment process.
 
+## Important: Configuring Project Name
+
+The deployment scripts require the correct Cloudflare Pages project name, which may not match your repository name. By default, the scripts use `pantrypal` as the project name.
+
+To specify your Cloudflare Pages project name:
+
+```bash
+# Set the project name environment variable
+export CLOUDFLARE_PAGES_PROJECT="your-actual-project-name"
+```
+
+For GitHub Actions, add a secret named `CLOUDFLARE_PAGES_PROJECT` with your project name.
+
+To find your Cloudflare Pages project name:
+1. Go to the Cloudflare Dashboard
+2. Navigate to Pages
+3. Find your project and note the exact name (it's case-sensitive)
+
 ## File Size Limitations
 
 Cloudflare Pages has a strict file size limit of 25 MiB per file. Next.js builds can generate large files, especially webpack cache files (*.pack, *.map) that often exceed this limit. Our custom build scripts handle this by:
@@ -50,6 +68,7 @@ The following environment variables must be set for deployments:
 - `CLOUDFLARE_API_TOKEN` - Your Cloudflare API token
 - `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare account ID
 - `R2_BUCKET_NAME` - The name of your R2 bucket
+- `CLOUDFLARE_PAGES_PROJECT` - Your Cloudflare Pages project name (default: "pantrypal")
 
 ## Deployment Options
 
@@ -62,6 +81,7 @@ For automated deployments:
    - `CLOUDFLARE_API_TOKEN`
    - `CLOUDFLARE_ACCOUNT_ID`
    - `R2_BUCKET_NAME`
+   - `CLOUDFLARE_PAGES_PROJECT` (optional, defaults to "pantrypal")
 2. Push changes to the `main` or `master` branch to trigger the deployment
 
 The workflow in `.github/workflows/deploy-with-r2.yml` handles building the application, uploading the build artifacts to R2, and deploying to Cloudflare Pages.
@@ -75,6 +95,7 @@ The workflow in `.github/workflows/deploy-with-r2.yml` handles building the appl
 export CLOUDFLARE_API_TOKEN=your_api_token
 export CLOUDFLARE_ACCOUNT_ID=your_account_id
 export R2_BUCKET_NAME=your_bucket_name
+export CLOUDFLARE_PAGES_PROJECT=your_project_name  # Optional, defaults to "pantrypal"
 
 # Run the deployment script
 ./deploy-with-r2.sh
@@ -87,6 +108,7 @@ export R2_BUCKET_NAME=your_bucket_name
 $env:CLOUDFLARE_API_TOKEN = "your_api_token"
 $env:CLOUDFLARE_ACCOUNT_ID = "your_account_id"
 $env:R2_BUCKET_NAME = "your_bucket_name"
+$env:CLOUDFLARE_PAGES_PROJECT = "your_project_name"  # Optional, defaults to "pantrypal"
 
 # Run the build script
 ./build-pages.ps1
@@ -99,13 +121,13 @@ curl.exe -X PUT "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_A
   --data-binary @pages-build.zip
 
 # Create a deployment
-curl.exe -X POST "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects/stock-recorder/deployments" `
+curl.exe -X POST "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects/$env:CLOUDFLARE_PAGES_PROJECT/deployments" `
   -H "Authorization: Bearer $env:CLOUDFLARE_API_TOKEN" `
   -H "Content-Type: application/json" `
   --data "{\"production\": {\"r2_bucket\": \"$env:R2_BUCKET_NAME\", \"r2_object\": \"pages-build.zip\"}}"
 
 # Set worker permissions (wait a few seconds after the previous command)
-curl.exe -X PATCH "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects/stock-recorder/deployments/latest" `
+curl.exe -X PATCH "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects/$env:CLOUDFLARE_PAGES_PROJECT/deployments/latest" `
   -H "Authorization: Bearer $env:CLOUDFLARE_API_TOKEN" `
   -H "Content-Type: application/json" `
   --data "{\"deployment_configs\":{\"production\":{\"compatibility_flags\":[\"streams_enable_constructors\"],\"compatibility_date\":\"2023-10-30\",\"usage_model\":\"bundled\"}}}"
@@ -144,6 +166,23 @@ After deploying to Cloudflare Pages, we set specific worker permissions and comp
 
 This configuration helps prevent Error 1019 (authentication/permission issues) that can occur with Cloudflare deployments.
 
+## Cloudflare Console Configuration
+
+For the R2 deployment method to work properly, you need to configure your Cloudflare Pages project:
+
+1. **Disable automatic GitHub deployments**:
+   - Go to Cloudflare Dashboard > Pages > Your Project > Settings
+   - Under "Builds & deployments", disable "Automatic deployments"
+   - This prevents Cloudflare from trying to build your site itself
+
+2. **Verify Direct Upload is enabled**:
+   - Go to Cloudflare Dashboard > Pages > Your Project > Settings
+   - Check that "Direct Upload" or "Custom deployment" is enabled
+
+3. **Verify your project name**:
+   - Ensure the project name in your deployment scripts matches exactly what's in Cloudflare
+   - The project name is case-sensitive
+
 ## npm Scripts
 
 The following npm scripts are available:
@@ -170,6 +209,18 @@ If you have connected your GitHub repository to Cloudflare Pages directly, you s
 3. Set "Automatic deployments" to "Disabled"
 
 ## Troubleshooting
+
+### Project Not Found Error
+
+If you see this error:
+```
+"Project not found. The specified project name does not match any of your existing projects."
+```
+
+Make sure:
+1. You've set the correct project name in your environment with `CLOUDFLARE_PAGES_PROJECT`
+2. The project name exactly matches what's in Cloudflare (case-sensitive)
+3. The API token has the necessary permissions to access this project
 
 ### File Size Limits (25 MiB)
 
