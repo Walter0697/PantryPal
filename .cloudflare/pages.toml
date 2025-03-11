@@ -1,4 +1,0 @@
-# Direct Cloudflare Pages configuration
-build.command = "npm install --legacy-peer-deps && npm run build"
-build.environment = { NODE_VERSION = "20", NODE_COMPAT = "true" }
-build.output = ".next" 

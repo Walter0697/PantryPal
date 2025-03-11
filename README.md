@@ -20,56 +20,6 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Deployment
-
-This project uses a two-step deployment process to handle large Next.js builds:
-
-1. Build artifacts are uploaded to Cloudflare R2 storage
-2. The artifacts are downloaded and then deployed to Cloudflare Pages
-
-The process works as follows:
-- The Next.js app is built using the standalone output
-- The build artifacts are compressed and uploaded to R2
-- The artifacts are then downloaded and extracted
-- The extracted files are deployed to Cloudflare Pages
-
-This approach overcomes the size limitations of direct Cloudflare Pages deployments.
-
-### Setup Required Secrets
-
-For GitHub Actions deployment, add these secrets to your repository:
-
-- `CLOUDFLARE_API_TOKEN`: Your Cloudflare API token with R2 and Pages permissions
-- `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare account ID
-- `R2_BUCKET_NAME`: The name of your R2 bucket for artifacts
-
-### Manual Deployment
-
-To deploy manually, use the provided script:
-
-```bash
-# Set required environment variables
-export CLOUDFLARE_API_TOKEN=your_token
-export CLOUDFLARE_ACCOUNT_ID=your_account_id
-export R2_BUCKET_NAME=your_bucket_name
-
-# Run the deployment script
-./deploy-with-r2.sh
-```
-
-### Disabling Automatic Cloudflare Pages Deployments
-
-To ensure only the R2 deployment method is used (and prevent duplicate deployments), follow these steps:
-
-1. **Log in to the Cloudflare Dashboard** at [https://dash.cloudflare.com/](https://dash.cloudflare.com/)
-2. **Navigate to Pages** and select your project
-3. **Access Project Settings** by clicking on the "Settings" tab
-4. **Find the "Builds & deployments" section**
-5. **Disable GitHub Integration** by toggling off "Enable GitHub deployments" or clicking "Disconnect" on your GitHub repository connection
-6. **Save your changes**
-
-Alternatively, you can change the Production branch to a non-existent branch name (like "manual-deploy-only") to prevent automatic deployments while keeping the GitHub integration.
-
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

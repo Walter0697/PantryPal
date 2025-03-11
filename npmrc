@@ -1,3 +1,0 @@
-# Allow installation of packages with peer dependency conflicts
-# This is needed because react-google-recaptcha-v3 doesn't support React 19
-legacy-peer-deps=true 
