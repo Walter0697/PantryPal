@@ -1,5 +1,5 @@
 import './globals.css';
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import NavigationWrapper from "../components/NavigationWrapper";
 import { AuthProvider } from "../components/AuthProvider";
@@ -7,14 +7,9 @@ import { AuthProvider } from "../components/AuthProvider";
 // Import the initialization module to ensure it runs when the app starts
 import '../util/server-only/init';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-inter",
 });
 
 export const metadata = {
@@ -32,7 +27,7 @@ export default async function RootLayout({
   
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}>
+      <body className={`${inter.variable} antialiased flex flex-col min-h-screen`}>
         <AuthProvider>
           <Toaster 
             position="top-center"

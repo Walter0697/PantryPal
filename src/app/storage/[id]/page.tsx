@@ -18,20 +18,8 @@ import StorageIconSelect from '../../../components/StorageIconSelect';
 type PageParams = {
   params: {
     id: string;
-  } | Promise<{ id: string }>;
+  };
 };
-
-// Helper function to unwrap params safely across Next.js versions
-function useParams(params: { id: string } | Promise<{ id: string }>): { id: string } {
-  // Check if params is a Promise (for future Next.js versions)
-  if (params instanceof Promise || typeof (params as any).then === 'function') {
-    // Unwrap the Promise using React.use
-    return React.use(params as Promise<{ id: string }>);
-  }
-  
-  // Current version of Next.js where params is a direct object
-  return params as { id: string };
-}
 
 // Get icon component from name
 const getIconComponent = (iconName: string): IconType => {
@@ -83,9 +71,8 @@ const EmptyState = ({ onAddClick }: { onAddClick: () => void }) => (
 export default function StoragePage({ params }: PageParams) {
   const router = useRouter();
   
-  // Safely unwrap params for current and future Next.js versions
-  const unwrappedParams = useParams(params);
-  const areaIdentifier = unwrappedParams.id;
+  // Get the area identifier from the URL parameter
+  const areaIdentifier = params.id;
   
   const [boxName, setBoxName] = useState('');
   const [boxIdentifier, setBoxIdentifier] = useState('');
