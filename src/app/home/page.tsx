@@ -7,6 +7,8 @@ import dynamic from 'next/dynamic';
 import { Layout } from 'react-grid-layout';
 import { useAuth } from '../../components/AuthProvider';
 import { getLayouts, saveLayouts, LayoutConfig } from '../../util/storage';
+import { GridLayoutRef } from '../../components/GridLayout';
+import toast from 'react-hot-toast';
 
 // Validate token on page load
 function validateStoredToken() {
@@ -43,7 +45,7 @@ function validateStoredToken() {
 }
 
 // Dynamically import the GridLayout component to avoid SSR issues
-const GridLayout = dynamic(() => import('../../components/GridLayout'), {
+const GridLayoutComponent = dynamic(() => import('../../components/GridLayout'), {
   ssr: false,
 });
 
@@ -55,8 +57,8 @@ export default function HomePage() {
   const [currentLayouts, setCurrentLayouts] = useState<LayoutConfig>({});
   const [temporaryLayouts, setTemporaryLayouts] = useState<LayoutConfig>({});
   
-  // Reference to the GridLayout component
-  const gridLayoutRef = useRef<any>(null);
+  // Reference to the GridLayout component with proper typing
+  const gridLayoutRef = useRef<GridLayoutRef>(null);
 
   // Validate token on component mount
   useEffect(() => {
@@ -83,29 +85,30 @@ export default function HomePage() {
     console.log('Token is valid, user is authenticated properly');
   }, [isLoggedIn, logout, router]);
 
+  // Extract loadData function so it can be reused
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      console.log('Attempting to load layouts data...');
+      const layouts = await getLayouts();
+      console.log('Layouts loaded successfully');
+      setCurrentLayouts(layouts);
+      // Initialize temporary layouts with the same data
+      setTemporaryLayouts(JSON.parse(JSON.stringify(layouts)));
+    } catch (error: any) {
+      console.error('Error loading layouts:', error);
+      // If the error is auth related, you might want to redirect
+      if (error?.toString().includes('unauthorized') || error?.toString().includes('auth')) {
+        console.log('Auth-related error detected, redirecting to login');
+        router.push('/');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Load saved layouts on component mount
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        console.log('Attempting to load layouts data...');
-        const layouts = await getLayouts();
-        console.log('Layouts loaded successfully');
-        setCurrentLayouts(layouts);
-        // Initialize temporary layouts with the same data
-        setTemporaryLayouts(JSON.parse(JSON.stringify(layouts)));
-      } catch (error: any) {
-        console.error('Error loading layouts:', error);
-        // If the error is auth related, you might want to redirect
-        if (error?.toString().includes('unauthorized') || error?.toString().includes('auth')) {
-          console.log('Auth-related error detected, redirecting to login');
-          router.push('/');
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     // Only load data if we believe we're logged in
     if (isLoggedIn) {
       console.log('User is logged in, loading layout data...');
@@ -116,49 +119,100 @@ export default function HomePage() {
   }, [isLoggedIn, router]);
 
   const handleEditClick = () => {
-    // Store the current layouts as temporary layouts when entering edit mode
+    // Before entering edit mode, store the current layouts as temporary layouts
+    // This gives us a snapshot to revert to if the user cancels
+    console.log('Entering edit mode, storing current layout as temporary');
     setTemporaryLayouts(JSON.parse(JSON.stringify(currentLayouts)));
     setIsEditMode(true);
   };
 
   const handleSaveClick = async () => {
-    // Save layouts to DynamoDB
     try {
-      // First, save via the grid layout component to ensure all state is properly updated
-      if (gridLayoutRef.current && gridLayoutRef.current.saveCurrentState) {
-        await gridLayoutRef.current.saveCurrentState();
-        
-        // Also ensure we save the layouts we have in our state
-        await saveLayouts(currentLayouts);
-        
-        // Update temporaryLayouts to match current layouts after successful save
-        setTemporaryLayouts(JSON.parse(JSON.stringify(currentLayouts)));
-        setIsEditMode(false);
+      console.log('Saving layout changes...');
+      setIsLoading(true); // Set loading state before save operations
+      
+      // First, capture the current layouts from GridLayout BEFORE any other operations
+      let layoutsToSave;
+      
+      if (gridLayoutRef.current && typeof gridLayoutRef.current.getCurrentLayouts === 'function') {
+        // Get the current layouts directly from the GridLayout component
+        layoutsToSave = gridLayoutRef.current.getCurrentLayouts();
+        console.log('Captured current layouts from GridLayout:', layoutsToSave);
       } else {
-        console.error('GridLayout reference not available');
-        throw new Error('GridLayout reference not available');
+        // Fallback to using our current state
+        layoutsToSave = currentLayouts;
+        console.log('Using currentLayouts as fallback:', layoutsToSave);
       }
+      
+      // Create deep copies to avoid reference issues
+      const layoutsCopy = JSON.parse(JSON.stringify(layoutsToSave));
+      
+      // Now, try to save via GridLayout component's saveCurrentState method
+      if (gridLayoutRef.current && typeof gridLayoutRef.current.saveCurrentState === 'function') {
+        try {
+          // This will save the current state to the database
+          await gridLayoutRef.current.saveCurrentState();
+          console.log('Successfully saved layouts via GridLayout component');
+        } catch (error) {
+          console.warn('Failed to save via GridLayout, falling back to direct save:', error);
+          // Save directly to the database
+          await saveLayouts(layoutsCopy);
+        }
+      } else {
+        console.warn('GridLayout reference not available, saving directly');
+        await saveLayouts(layoutsCopy);
+      }
+      
+      // Exit edit mode before refetching data
+      setIsEditMode(false);
+      
+      // After saving to database, refetch the data to ensure we have the most up-to-date values
+      console.log('Refetching data from database to ensure latest values');
+      await loadData(); // This will handle setting isLoading to false
+      
+      // Toast notification for user feedback
+      toast.success('Layout changes saved successfully!');
     } catch (error) {
       console.error('Error saving layouts:', error);
-      // Display error message to user
-      alert('Could not save changes. Please try again.');
+      toast.error('Could not save changes. Please try again.');
+      setIsLoading(false); // Make sure to clear loading state on error
     }
   };
 
   const handleCancelClick = () => {
-    // Restore from temporary layouts when cancelling edit
-    setCurrentLayouts(JSON.parse(JSON.stringify(temporaryLayouts)));
+    console.log('Cancelling edit mode, reverting to original state');
+    
+    // First, restore our local state from temporary layouts
+    // These contain the layouts from before entering edit mode
+    const originalLayouts = JSON.parse(JSON.stringify(temporaryLayouts));
+    setCurrentLayouts(originalLayouts);
+    
+    // Next, reset the GridLayout component
+    if (gridLayoutRef.current && typeof gridLayoutRef.current.resetToOriginal === 'function') {
+      try {
+        gridLayoutRef.current.resetToOriginal();
+        console.log('Successfully reset GridLayout to original state');
+      } catch (error) {
+        console.warn('Could not reset GridLayout component, but parent state has been restored:', error);
+      }
+    } else {
+      console.warn('GridLayout reference not available for reset, but parent state has been restored');
+    }
+    
+    // Finally, exit edit mode
     setIsEditMode(false);
     
-    // Tell the GridLayout to reset
-    if (gridLayoutRef.current) {
-      gridLayoutRef.current.resetToOriginal();
-    }
+    // Notify user
+    toast.success('Changes cancelled - layout restored to previous state');
   };
 
   const handleLayoutChange = (layouts: LayoutConfig) => {
     // Update current layouts when layout changes
-    setCurrentLayouts(layouts);
+    console.log('Layout changed in parent component');
+    
+    // Create a deep copy to avoid reference issues
+    const layoutsCopy = JSON.parse(JSON.stringify(layouts));
+    setCurrentLayouts(layoutsCopy);
   };
 
   const navigateToListView = () => {
@@ -244,7 +298,7 @@ export default function HomePage() {
         </div>
       ) : (
         <div className="mb-8">
-          <GridLayout
+          <GridLayoutComponent
             ref={gridLayoutRef}
             isEditMode={isEditMode}
             onLayoutChange={handleLayoutChange}

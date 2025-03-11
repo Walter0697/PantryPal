@@ -167,8 +167,16 @@ interface GridLayoutProps {
   onResetToOriginal?: () => void;
 }
 
+// Define a more specific ref type
+export interface GridLayoutRef {
+  addNewBox: (name: string) => Promise<AreaItem | null>;
+  saveCurrentState: () => Promise<SavedData>;
+  resetToOriginal: () => void;
+  getCurrentLayouts: () => LayoutConfig;
+}
+
 // Export with forwardRef to allow parent components to call methods
-const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChange, onAddBox, onResetToOriginal }, ref) => {
+const GridLayout = forwardRef<GridLayoutRef, GridLayoutProps>(({ isEditMode, onLayoutChange, onAddBox, onResetToOriginal }, ref) => {
   // State for saved data (persisted in DynamoDB)
   const [savedData, setSavedData] = useState<SavedData>({
     areas: initialAreas,
@@ -179,6 +187,12 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
   // State for current editing data (temporary until saved)
   const [editingAreas, setEditingAreas] = useState<AreaItem[]>(initialAreas);
   const [editingLayouts, setEditingLayouts] = useState<LayoutConfig>(defaultLayouts);
+
+  // Add a state to track if changes have been saved
+  const [changesSaved, setChangesSaved] = useState(false);
+
+  // Add explicit state to track if we're exiting edit mode after a save or a cancel
+  const [exitingWithSave, setExitingWithSave] = useState(false);
 
   // Load saved data on component mount
   useEffect(() => {
@@ -199,57 +213,105 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
     loadData();
   }, []);
 
-  // Reset to original saved state when edit mode changes
+  // Initialize editing state when entering edit mode
   useEffect(() => {
-    if (isEditMode && !isLoading) {
-      // When entering edit mode, create a copy of the saved data
-      setEditingAreas([...savedData.areas]);
-      setEditingLayouts(JSON.parse(JSON.stringify(savedData.layouts)));
+    if (isEditMode) {
+      // When entering edit mode, reset the changesSaved flag
+      setChangesSaved(false);
+      
+      if (!isLoading) {
+        // When entering edit mode, create a copy of the saved data
+        // But only do this if we don't already have editing data (first time entering edit mode)
+        if (editingAreas.length === 0 || Object.keys(editingLayouts).length === 0) {
+          console.log('Entering edit mode, creating editing copy of saved data');
+          setEditingAreas([...savedData.areas]);
+          setEditingLayouts(JSON.parse(JSON.stringify(savedData.layouts)));
+        } else {
+          console.log('Remaining in edit mode with existing editing data');
+        }
+      }
     }
-  }, [isEditMode, savedData, isLoading]);
+    // We deliberately don't reset anything when exiting edit mode (isEditMode changes from true to false)
+    // This ensures the latest state is preserved after saving
+  }, [isEditMode, savedData, isLoading, editingAreas, editingLayouts]);
+
+  // Handle changes to edit mode
+  useEffect(() => {
+    if (isEditMode) {
+      // When entering edit mode, reset the exiting flag
+      setExitingWithSave(false);
+    }
+  }, [isEditMode]);
 
   // Method to save current state to DynamoDB
   const saveCurrentState = async () => {
     try {
-      // Save to DynamoDB
-      await saveLayouts(editingLayouts);
-      await saveAreas(editingAreas);
+      console.log('Saving current GridLayout state to DynamoDB');
       
-      // Update local state
+      // Create deep copies to avoid reference issues
+      const layoutsToSave = JSON.parse(JSON.stringify(editingLayouts));
+      const areasToSave = JSON.parse(JSON.stringify(editingAreas));
+      
+      // Save to DynamoDB
+      await saveLayouts(layoutsToSave);
+      await saveAreas(areasToSave);
+      
+      // Create a new SavedData object with the current edits
       const newSavedData: SavedData = {
-        layouts: editingLayouts,
-        areas: editingAreas
+        layouts: layoutsToSave,
+        areas: areasToSave
       };
       
+      // Update the saved data with the current edits
       setSavedData(newSavedData);
+      
+      // Also update the editing state to stay in sync
+      setEditingLayouts(layoutsToSave);
+      setEditingAreas(areasToSave);
+      
+      // Mark that we're exiting with a save
+      setExitingWithSave(true);
+      
+      console.log('GridLayout state saved successfully');
       return newSavedData;
     } catch (error) {
-      console.error("Error saving data:", error);
+      console.error("Error saving GridLayout data:", error);
       throw error;
     }
   };
 
   // Method to reset to original state
   const resetToOriginal = () => {
+    console.log('Resetting GridLayout to original state');
+    
+    // Get the original saved data from before editing began
     const originalAreas = [...savedData.areas];
     const originalLayouts = JSON.parse(JSON.stringify(savedData.layouts)) as LayoutConfig;
     
+    // Reset editing state to match the original saved data
     setEditingAreas(originalAreas);
     setEditingLayouts(originalLayouts);
     
-    // Notify parent component of layout reset
+    // Mark that we're NOT exiting with a save
+    setExitingWithSave(false);
+    
+    // Ensure the parent component is notified of these changes
     onLayoutChange(originalLayouts);
     
+    // If a custom reset handler is provided, call it
     if (onResetToOriginal) {
       onResetToOriginal();
     }
+    
+    console.log('GridLayout state reset successfully to original saved state');
   };
 
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     addNewBox: (name: string) => addNewBoxWithName(name),
     saveCurrentState,
-    resetToOriginal
+    resetToOriginal,
+    getCurrentLayouts: () => editingLayouts
   }));
 
   const handleBoxClick = (areaId: string, identifier: string) => {
@@ -265,7 +327,16 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
   };
 
   const handleLayoutChange = (layout: Layout[], layouts: LayoutConfig) => {
+    // Update the editing layouts with the latest changes
     setEditingLayouts(layouts);
+    
+    // If in edit mode and layouts change, we have new unsaved changes
+    if (isEditMode) {
+      // Reset the exiting flag since we have new unsaved changes
+      setExitingWithSave(false);
+    }
+    
+    // Notify the parent component of the layout change
     onLayoutChange(layouts);
   };
 
@@ -388,9 +459,32 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
     }
   };
 
-  // Display appropriate data based on edit mode
-  const displayAreas = isEditMode ? editingAreas : savedData.areas;
-  const displayLayouts = isEditMode ? editingLayouts : savedData.layouts;
+  // Get the data to display based on edit mode and save state
+  const getDisplayData = () => {
+    if (isEditMode) {
+      // When in edit mode, always show the editing state
+      return {
+        areas: editingAreas,
+        layouts: editingLayouts
+      };
+    } else if (exitingWithSave) {
+      // If we just saved and are exiting edit mode, show the editing state
+      // (which contains the latest changes we saved)
+      return {
+        areas: editingAreas,
+        layouts: editingLayouts
+      };
+    } else {
+      // Otherwise (initial load or after cancel), show the saved data
+      return {
+        areas: savedData.areas,
+        layouts: savedData.layouts
+      };
+    }
+  };
+
+  // Get the appropriate data to display
+  const displayData = getDisplayData();
 
   if (isLoading) {
     return <div className="p-4 text-center">Loading layout...</div>;
@@ -400,7 +494,7 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
     <div className="p-4">
       <ResponsiveGridLayout
         className="layout"
-        layouts={displayLayouts}
+        layouts={displayData.layouts}
         breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
         cols={{ lg: 12, md: 9, sm: 6, xs: 3, xxs: 1 }}
         rowHeight={150}
@@ -409,7 +503,7 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
         isResizable={isEditMode}
         onLayoutChange={handleLayoutChange}
       >
-      {displayAreas.map((area: AreaItem) => {
+      {displayData.areas.map((area: AreaItem) => {
           const Icon = iconMap[area.iconName] || FaBox;
           return (
             <div 
@@ -434,7 +528,8 @@ const GridLayout = forwardRef<any, GridLayoutProps>(({ isEditMode, onLayoutChang
   );
 });
 
-// Add display name for debugging
+// Make sure the component is properly named for debugging
 GridLayout.displayName = 'GridLayout';
 
+// Export the component as default
 export default GridLayout;
