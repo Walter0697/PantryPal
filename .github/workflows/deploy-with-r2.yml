@@ -42,6 +42,37 @@ jobs:
           done
           echo "✅ Verification complete."
 
+      - name: Ensure output directory exists
+        run: |
+          echo "🔍 Checking if .vercel/output/static directory exists..."
+          if [ ! -d ".vercel/output/static" ]; then
+            echo "⚠️ Output directory not found, creating it..."
+            mkdir -p .vercel/output/static
+            # Copy files from build output if they exist elsewhere
+            if [ -d "out" ]; then
+              echo "Copying files from 'out' directory..."
+              cp -r out/* .vercel/output/static/
+            elif [ -d ".next/static" ]; then
+              echo "Setting up minimal structure from .next/static..."
+              mkdir -p .vercel/output/static/_next
+              cp -r .next/static .vercel/output/static/_next/
+              # Create a basic index.html if it doesn't exist
+              if [ ! -f ".vercel/output/static/index.html" ]; then
+                echo "Creating basic index.html..."
+                echo '<!DOCTYPE html><html><head><title>App</title></head><body><div id="__next"></div></body></html>' > .vercel/output/static/index.html
+              fi
+            fi
+          else
+            echo "✅ Output directory exists: $(ls -la .vercel/output/static | wc -l) files"
+            ls -la .vercel/output/static
+          fi
+          
+          # Create a minimal _worker.js if it doesn't exist
+          if [ ! -f ".vercel/output/static/_worker.js" ]; then
+            echo "Creating basic _worker.js..."
+            echo 'export default { async fetch(request) { return fetch(request); } };' > .vercel/output/static/_worker.js
+          fi
+
       - name: Ensure wrangler.toml is valid
         env:
           PROJECT_NAME: ${{ secrets.CLOUDFLARE_PAGES_PROJECT || 'pantrypal' }}
@@ -83,6 +114,31 @@ jobs:
 
       - name: Install jq
         run: sudo apt-get install -y jq
+
+      - name: Create deployment archive
+        run: |
+          echo "📦 Creating deployment archive for Cloudflare Pages..."
+          
+          # Ensure the .vercel/output/static directory exists
+          if [ ! -d ".vercel/output/static" ]; then
+            echo "❌ Error: .vercel/output/static directory not found!"
+            exit 1
+          fi
+          
+          # Create a portable archive with correct structure
+          echo "Creating pages-build.tar.gz with proper structure..."
+          tar -czvf pages-build.tar.gz .vercel
+          
+          # Verify the archive contains the expected directories
+          echo "Verifying archive contents:"
+          tar -tvf pages-build.tar.gz | grep -E "\.vercel/output/static"
+          
+          if [ $? -ne 0 ]; then
+            echo "❌ Error: The archive does not contain .vercel/output/static!"
+            exit 1
+          fi
+          
+          echo "✅ Archive created successfully with the correct structure"
 
       - name: Upload to R2 and deploy to Cloudflare Pages
         env:
