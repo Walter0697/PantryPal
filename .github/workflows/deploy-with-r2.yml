@@ -46,33 +46,32 @@ jobs:
         env:
           PROJECT_NAME: ${{ secrets.CLOUDFLARE_PAGES_PROJECT || 'pantrypal' }}
         run: |
-          echo "🔍 Checking wrangler.toml configuration..."
+          echo "🔍 Creating wrangler.toml configuration..."
           echo "Using project name: $PROJECT_NAME"
           
-          # Create a known-good wrangler.toml
-          cat > wrangler.toml << EOF
-# Cloudflare Pages configuration
-name = "$PROJECT_NAME"
-
-# Set the build output directory for Pages (this is critical)
-pages_build_output_dir = ".vercel/output/static"
-
-# Build environment settings
-[build.environment]
-NODE_VERSION = "18.0.0"
-NPM_VERSION = "9.6.7"
-NODE_COMPAT = "true"
-
-# Define site configuration
-[site]
-bucket = ".vercel/output/static"
-
-# Worker configuration
-[worker]
-compatibility_date = "2023-10-30"
-compatibility_flags = ["streams_enable_constructors"]
-usage_model = "bundled"
-EOF
+          # Create wrangler.toml file line by line - much safer than heredoc
+          echo "# Cloudflare Pages configuration" > wrangler.toml
+          echo "name = \"$PROJECT_NAME\"" >> wrangler.toml
+          echo "" >> wrangler.toml
+          echo "# Set the build output directory for Pages (this is critical)" >> wrangler.toml
+          echo "pages_build_output_dir = \".vercel/output/static\"" >> wrangler.toml
+          echo "" >> wrangler.toml
+          echo "# Build environment settings" >> wrangler.toml
+          echo "[build.environment]" >> wrangler.toml
+          echo "NODE_VERSION = \"18.0.0\"" >> wrangler.toml
+          echo "NPM_VERSION = \"9.6.7\"" >> wrangler.toml
+          echo "NODE_COMPAT = \"true\"" >> wrangler.toml
+          echo "" >> wrangler.toml
+          echo "# Define site configuration" >> wrangler.toml
+          echo "[site]" >> wrangler.toml
+          echo "bucket = \".vercel/output/static\"" >> wrangler.toml
+          echo "" >> wrangler.toml
+          echo "# Worker configuration" >> wrangler.toml
+          echo "[worker]" >> wrangler.toml
+          echo "compatibility_date = \"2023-10-30\"" >> wrangler.toml
+          echo "compatibility_flags = [\"streams_enable_constructors\"]" >> wrangler.toml
+          echo "usage_model = \"bundled\"" >> wrangler.toml
+          
           echo "✅ Created valid wrangler.toml file"
           cat wrangler.toml
           
