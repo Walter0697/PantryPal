@@ -140,6 +140,46 @@ jobs:
           
           echo "✅ Archive created successfully with the correct structure"
 
+      - name: Disconnect GitHub integration and deploy from R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT || 'pantrypal' }}
+        run: |
+          echo "🔧 Checking Pages project build configuration..."
+          
+          # Check if project exists and is using GitHub integration
+          PROJECT_INFO=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$CLOUDFLARE_PAGES_PROJECT" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json")
+          
+          echo "Project info: $PROJECT_INFO"
+          
+          # If project doesn't exist, create it (without GitHub integration)
+          if echo "$PROJECT_INFO" | grep -q '"success":false'; then
+            echo "Creating new Pages project without GitHub integration..."
+            CREATE_PROJECT=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "{\"name\":\"$CLOUDFLARE_PAGES_PROJECT\",\"production_branch\":\"main\"}")
+            
+            echo "Create project response: $CREATE_PROJECT"
+          else
+            # If project has GitHub integration, disconnect it
+            if echo "$PROJECT_INFO" | grep -q '"deployment_configs"'; then
+              echo "Disconnecting GitHub integration from Pages project..."
+              DISCONNECT_GITHUB=$(curl -X PATCH "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$CLOUDFLARE_PAGES_PROJECT" \
+                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                -H "Content-Type: application/json" \
+                --data '{"source":{"type":"none"}}')
+              
+              echo "Disconnect GitHub response: $DISCONNECT_GITHUB"
+            else
+              echo "Project already exists without GitHub integration."
+            fi
+          fi
+
       - name: Upload to R2 and deploy to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -162,7 +202,7 @@ jobs:
           DEPLOY_RESPONSE=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$CLOUDFLARE_PAGES_PROJECT/deployments" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" \
-            --data "{\"production\": {\"r2_bucket\": \"$R2_BUCKET_NAME\", \"r2_object\": \"pages-build.tar.gz\"}}")
+            --data "{\"production\": {\"r2_bucket\": \"$R2_BUCKET_NAME\", \"r2_object\": \"pages-build.tar.gz\"}, \"deployment_source\": \"direct_upload\"}")
           
           echo "Deployment response: $DEPLOY_RESPONSE"
           
