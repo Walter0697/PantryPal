@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash } from 'react-icons/fa';
-import { getAreaByIdentifier } from '../../../util/server-only/gridStorage';
+import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash, FaExchangeAlt } from 'react-icons/fa';
+import { getAreaByIdentifier, getAreas } from '../../../util/server-only/gridStorage';
 import { 
   getAreaItems, 
   saveItem, 
@@ -14,6 +14,7 @@ import {
 import * as Icons from 'react-icons/fa6';
 import { IconType } from 'react-icons';
 import StorageIconSelect from '../../../components/StorageIconSelect';
+import Select from 'react-select';
 
 type PageParams = {
   params: {
@@ -68,6 +69,25 @@ const EmptyState = ({ onAddClick }: { onAddClick: () => void }) => (
   </div>
 );
 
+// Custom option component that displays the icon
+const IconOption = ({ data, ...props }: any) => (
+  <div 
+    {...props.innerProps} 
+    className={`flex items-center px-3 py-2 hover:bg-gray-700 cursor-pointer ${data.color ? data.color + ' bg-opacity-20' : ''}`}
+  >
+    {data.icon && React.createElement(data.icon, { className: "w-5 h-5 mr-2 text-primary-300" })}
+    <span className="text-white">{data.label}</span>
+  </div>
+);
+
+// Custom value container that displays selected icon
+const ValueContainer = ({ data, children, ...props }: any) => (
+  <div className={`flex items-center h-full px-3 py-2 ${data?.color ? data.color + ' bg-opacity-20 rounded' : ''}`} style={{ width: '95%' }}>
+    {data?.icon && React.createElement(data.icon, { className: "w-5 h-5 mr-3 text-primary-300" })}
+    <div className="text-white truncate">{children}</div>
+  </div>
+);
+
 export default function StoragePage({ params }: PageParams) {
   const router = useRouter();
   
@@ -106,6 +126,13 @@ export default function StoragePage({ params }: PageParams) {
   const [newItemCategory, setNewItemCategory] = useState<string | undefined>(undefined);
   const [addError, setAddError] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  
+  // Transfer dialog state
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [transferringItem, setTransferringItem] = useState<StorageItem | null>(null);
+  const [availableBoxes, setAvailableBoxes] = useState<{ value: string; label: string }[]>([]);
+  const [selectedBox, setSelectedBox] = useState<string | null>(null);
+  const [isTransferring, setIsTransferring] = useState(false);
   
   // Fetch box data and items based on ID
   useEffect(() => {
@@ -352,13 +379,68 @@ export default function StoragePage({ params }: PageParams) {
           const updatedItems = items.filter(item => item.id !== itemId);
           setItems(updatedItems);
           setFilteredItems(filteredItems.filter(item => item.id !== itemId));
-          console.log(`Item ${itemId} deleted successfully`);
         } else {
           console.error('Failed to delete item');
         }
       } catch (error) {
         console.error('Error deleting item:', error);
       }
+    }
+  };
+
+  // Add this new function to handle opening the transfer dialog
+  const handleTransferClick = async (item: StorageItem) => {
+    setTransferringItem(item);
+    setSelectedBox(null);
+    setShowTransferDialog(true);
+    
+    try {
+      // Fetch all storage boxes except the current one
+      const allAreas = await getAreas('single-user');
+      
+      const boxOptions = allAreas
+        .filter(area => area.identifier !== areaIdentifier)
+        .map(area => ({
+          value: area.identifier,
+          label: area.name,
+          iconName: area.iconName,
+          icon: getIconComponent(area.iconName),
+          color: area.color
+        }));
+      
+      setAvailableBoxes(boxOptions);
+    } catch (error) {
+      console.error('Error fetching storage boxes:', error);
+    }
+  };
+
+  // Add this new function to handle the item transfer
+  const handleTransferSave = async () => {
+    if (!transferringItem || !selectedBox) return;
+    
+    setIsTransferring(true);
+    
+    try {
+      // 1. Remove item from current storage
+      await deleteItem(areaIdentifier, transferringItem.id);
+      
+      // 2. Add the item to the destination storage
+      await saveItem(selectedBox, transferringItem);
+      
+      // 3. Update the UI by removing the item from the current list
+      const updatedItems = items.filter(item => item.id !== transferringItem.id);
+      setItems(updatedItems);
+      setFilteredItems(updatedItems);
+      
+      // 4. Close the dialog
+      setShowTransferDialog(false);
+      setTransferringItem(null);
+      
+      console.log(`Item ${transferringItem.name} transferred from ${areaIdentifier} to ${selectedBox}`);
+    } catch (error) {
+      console.error('Error transferring item:', error);
+    } finally {
+      setIsTransferring(false);
     }
   };
 
@@ -464,6 +546,15 @@ export default function StoragePage({ params }: PageParams) {
                         title="Edit Item"
                       >
                         <FaPencilAlt />
+                      </button>
+                      
+                      {/* Transfer button - new */}
+                      <button
+                        onClick={() => handleTransferClick(item)}
+                        className="p-2 text-white hover:text-blue-400 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                        title="Transfer to Another Storage"
+                      >
+                        <FaExchangeAlt />
                       </button>
                       
                       {/* Delete button */}
@@ -716,6 +807,141 @@ export default function StoragePage({ params }: PageParams) {
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {isAdding ? 'Adding...' : 'Add Item'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Transfer Dialog */}
+      {showTransferDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-blue-medium border border-primary-700 rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-white mb-4">Transfer Item</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <p className="text-lg text-white mb-2">
+                    {transferringItem?.iconName && (
+                      <span className="mr-2 inline-block">
+                        {React.createElement(getIconComponent(transferringItem.iconName))}
+                      </span>
+                    )}
+                    Transfer <span className="font-bold">{transferringItem?.name}</span> to another storage location:
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-gray-300 mb-1">Destination Storage</label>
+                  <Select
+                    options={availableBoxes}
+                    value={availableBoxes.find(box => box.value === selectedBox)}
+                    onChange={(option: any) => setSelectedBox(option.value)}
+                    components={{
+                      Option: IconOption,
+                      SingleValue: ValueContainer
+                    }}
+                    styles={{
+                      control: (base: any) => ({
+                        ...base,
+                        backgroundColor: '#0a192f', // dark-blue
+                        borderColor: '#003d99', // primary-700
+                        color: 'white',
+                        boxShadow: 'none',
+                        minHeight: '48px', // Increased height for better padding
+                        height: '48px', // Increased height for better padding
+                        display: 'flex',
+                        flexDirection: 'row',
+                        '&:hover': {
+                          borderColor: '#0066ff',
+                        },
+                      }),
+                      valueContainer: (base: any) => ({
+                        ...base,
+                        height: '48px', // Match control height
+                        padding: '0', // Remove default padding since we handle it in the component
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexGrow: 1,
+                        overflow: 'hidden',
+                        maxWidth: 'calc(100% - 32px)', // Leave space for the dropdown arrow
+                      }),
+                      menu: (base: any) => ({
+                        ...base,
+                        backgroundColor: '#0a192f', // dark-blue
+                        borderColor: '#003d99', // primary-700
+                        color: 'white',
+                      }),
+                      option: (base: any, state: any) => ({
+                        ...base,
+                        backgroundColor: state.isFocused ? '#112240' : '#0a192f', // Dark blue when focused
+                        color: 'white',
+                        width: '100%',
+                      }),
+                      singleValue: (base: any) => ({
+                        ...base,
+                        color: 'white',
+                        margin: '0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        height: '100%',
+                        maxWidth: '100%',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }),
+                      input: (base: any) => ({
+                        ...base,
+                        color: 'white',
+                        margin: '0',
+                        padding: '0',
+                      }),
+                      placeholder: (base: any) => ({
+                        ...base,
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        margin: '0',
+                        padding: '0 0 0 6px', // Add left padding to the placeholder text
+                      }),
+                      indicatorsContainer: (base: any) => ({
+                        ...base,
+                        height: '48px', // Match control height
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                        position: 'relative',
+                      }),
+                      dropdownIndicator: (base: any) => ({
+                        ...base,
+                        padding: '0 8px',
+                      }),
+                      indicatorSeparator: () => ({
+                        display: 'none',
+                      }),
+                    }}
+                    placeholder="Select destination storage..."
+                    isSearchable={true}
+                  />
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowTransferDialog(false)}
+                  className="px-4 py-2 bg-dark-blue-light hover:bg-dark-blue text-white rounded-md transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                
+                <button
+                  onClick={handleTransferSave}
+                  disabled={!selectedBox || isTransferring}
+                  className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors ${
+                    !selectedBox || isTransferring ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  }`}
+                >
+                  {isTransferring ? 'Transferring...' : 'Transfer'}
                 </button>
               </div>
             </div>
