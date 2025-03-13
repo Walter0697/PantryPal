@@ -5,12 +5,34 @@ import { useRouter } from 'next/navigation';
 import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaBox, FaExchangeAlt, FaPencilAlt, FaTrash, FaCheck } from 'react-icons/fa';
 import * as Icons from 'react-icons/fa6';
 import { IconType } from 'react-icons';
+import { CSSTransition, TransitionGroup, SwitchTransition } from 'react-transition-group';
 import { getAllStorageItems, StorageWithItems } from '../actions';
 import { StorageItem } from '../../util/storageItems';
 
 // Get icon component from name
 const getIconComponent = (iconName: string): IconType => {
   return (Icons as any)[iconName] || Icons.FaBox;
+};
+
+// Animated Counter Component for smooth transitions
+const AnimatedCounter = ({ count, loading }: { count: number, loading: boolean }) => {
+  // Create a key that changes when the counter changes for the transition
+  const key = loading ? 'loading' : `total-${count}`;
+  
+  return (
+    <SwitchTransition mode="out-in">
+      <CSSTransition
+        key={key}
+        timeout={200}
+        classNames="counter"
+      >
+        <p className="font-medium">
+          {loading ? 'Loading items...' : 
+            `Total ${count} item${count !== 1 ? 's' : ''}`}
+        </p>
+      </CSSTransition>
+    </SwitchTransition>
+  );
 };
 
 export default function AllItemsPage() {
@@ -135,12 +157,9 @@ export default function AllItemsPage() {
         </div>
       </div>
       
-      {/* Item Count */}
-      <div className="mb-2 text-gray-300">
-        <p className="font-medium">
-          {loading ? 'Loading items...' : 
-            `Total ${totalItems} item${totalItems !== 1 ? 's' : ''}`}
-        </p>
+      {/* Item Count - with animation */}
+      <div className="mb-2 text-gray-300 h-6 overflow-hidden">
+        <AnimatedCounter count={totalItems} loading={loading} />
       </div>
       
       {/* Search Box */}
@@ -170,94 +189,104 @@ export default function AllItemsPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {filteredStorages.map(storage => (
-            <div key={storage.identifier} className="bg-dark-blue rounded-lg shadow-lg overflow-hidden mb-6">
-              {/* Storage Header */}
-              <div 
-                className={`${storage.color || 'bg-blue-600'} p-4 flex items-center justify-between cursor-pointer`}
-                onClick={() => handleStorageClick(storage.identifier)}
+          <TransitionGroup>
+            {filteredStorages.map(storage => (
+              <CSSTransition
+                key={storage.identifier}
+                timeout={300}
+                classNames="item"
               >
-                <div className="flex items-center space-x-3">
-                  {storage.iconName && (
-                    <div className="text-2xl text-white">
-                      {React.createElement(getIconComponent(storage.iconName))}
+                <div className="bg-dark-blue rounded-lg shadow-lg overflow-hidden mb-6">
+                  {/* Storage Header */}
+                  <div 
+                    className={`${storage.color || 'bg-blue-600'} p-4 flex items-center justify-between cursor-pointer`}
+                    onClick={() => handleStorageClick(storage.identifier)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      {storage.iconName && (
+                        <div className="text-2xl text-white">
+                          {React.createElement(getIconComponent(storage.iconName))}
+                        </div>
+                      )}
+                      <h2 className="text-xl font-bold text-white">{storage.name}</h2>
                     </div>
-                  )}
-                  <h2 className="text-xl font-bold text-white">{storage.name}</h2>
-                </div>
-                <div className="text-sm text-white font-medium">
-                  {storage.items.length} {storage.items.length === 1 ? 'item' : 'items'}
-                </div>
-              </div>
-              
-              {/* Items List */}
-              <ul className="divide-y divide-gray-800">
-                {storage.items.map(item => {
-                  // Check if this is a low stock item
-                  const minQuantity = item.minQuantity !== undefined ? item.minQuantity : 0;
-                  const isLowStock = item.quantity <= minQuantity;
+                    <div className="text-sm text-white font-medium">
+                      {storage.items.length} {storage.items.length === 1 ? 'item' : 'items'}
+                    </div>
+                  </div>
                   
-                  return (
-                    <li 
-                      key={`${storage.identifier}-${item.id}`} 
-                      className={`p-4 hover:bg-dark-blue-light transition-colors ${isLowStock ? 'bg-red-900 bg-opacity-70 hover:bg-red-800' : ''}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {item.iconName && (
-                            <div className="text-2xl text-gray-300">
-                              {React.createElement(getIconComponent(item.iconName))}
-                            </div>
-                          )}
-                          <div>
-                            <h3 className="font-semibold text-lg text-white">{item.name}</h3>
-                            <div className="text-sm text-gray-300 flex items-center space-x-2 font-medium">
-                              <span className={`${isLowStock ? 'text-red-300 font-bold' : ''}`}>
-                                Quantity: {item.quantity}{item.unit ? ` ${item.unit}` : ''}
-                              </span>
-                              {item.minQuantity !== undefined && item.minQuantity > 0 && (
-                                <span className={`${isLowStock ? 'bg-red-700' : 'bg-gray-800'} px-1.5 py-0.5 rounded text-xs text-white`}>
-                                  Min: {item.minQuantity}
-                                </span>
-                              )}
-                              {item.category && (
-                                <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs text-white">
-                                  {item.category}
-                                </span>
-                              )}
-                            </div>
-                            {item.notes && (
-                              <p className="text-sm text-gray-400 mt-1">{item.notes}</p>
-                            )}
-                          </div>
-                        </div>
+                  {/* Items List */}
+                  <ul className="divide-y divide-gray-800">
+                    <TransitionGroup>
+                      {storage.items.map(item => {
+                        // Check if this is a low stock item
+                        const minQuantity = item.minQuantity !== undefined ? item.minQuantity : 0;
+                        const isLowStock = item.quantity <= minQuantity;
                         
-                        <div className="flex items-center space-x-2">
-                          {/* Navigate to storage button */}
-                          <button
-                            onClick={() => handleStorageClick(storage.identifier)}
-                            className="p-2 text-white hover:text-blue-400 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
-                            title={`Go to ${storage.name}`}
+                        return (
+                          <CSSTransition
+                            key={`${storage.identifier}-${item.id}`}
+                            timeout={300}
+                            classNames="item"
                           >
-                            <FaBox />
-                          </button>
-                          
-                          {/* Edit button */}
-                          <button
-                            onClick={() => handleEditItem(storage.identifier, item)}
-                            className="p-2 text-white hover:text-white rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
-                            title="Edit Item"
-                          >
-                            <FaPencilAlt />
-                          </button>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+                            <li 
+                              className={`p-4 hover:bg-dark-blue-light transition-all duration-300 ${isLowStock ? 'bg-red-900 bg-opacity-70 hover:bg-red-800' : ''}`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  {item.iconName && (
+                                    <div className="text-2xl text-gray-300">
+                                      {React.createElement(getIconComponent(item.iconName))}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <h3 className="font-semibold text-lg text-white">{item.name}</h3>
+                                    <div className="text-sm text-gray-300 flex items-center space-x-2 font-medium">
+                                      <span className={`${isLowStock ? 'text-red-300 font-bold' : ''}`}>
+                                        Quantity: {item.quantity}{item.unit ? ` ${item.unit}` : ''}
+                                      </span>
+                                      {item.category && (
+                                        <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs text-white">
+                                          {item.category}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {item.notes && (
+                                      <p className="text-sm text-gray-400 mt-1">{item.notes}</p>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center space-x-2">
+                                  {/* Navigate to storage button */}
+                                  <button
+                                    onClick={() => handleStorageClick(storage.identifier)}
+                                    className="p-2 text-white hover:text-blue-400 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                                    title={`Go to ${storage.name}`}
+                                  >
+                                    <FaBox />
+                                  </button>
+                                  
+                                  {/* Edit button */}
+                                  <button
+                                    onClick={() => handleEditItem(storage.identifier, item)}
+                                    className="p-2 text-white hover:text-white rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                                    title="Edit Item"
+                                  >
+                                    <FaPencilAlt />
+                                  </button>
+                                </div>
+                              </div>
+                            </li>
+                          </CSSTransition>
+                        );
+                      })}
+                    </TransitionGroup>
+                  </ul>
+                </div>
+              </CSSTransition>
+            ))}
+          </TransitionGroup>
         </div>
       )}
     </div>

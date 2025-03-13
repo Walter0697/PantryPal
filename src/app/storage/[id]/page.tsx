@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash, FaExchangeAlt, FaList, FaTh } from 'react-icons/fa';
+import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash, FaExchangeAlt, FaList, FaTh, FaCheck } from 'react-icons/fa';
+import { CSSTransition, TransitionGroup, SwitchTransition } from 'react-transition-group';
 import { getAreaByIdentifier, getAreas } from '../../../util/server-only/gridStorage';
 import { 
   getAreaItems, 
@@ -88,6 +89,27 @@ const ValueContainer = ({ data, children, ...props }: any) => (
   </div>
 );
 
+// Animated Counter Component for smooth transitions
+const AnimatedCounter = ({ count, loading }: { count: number, loading: boolean }) => {
+  // Create a key that changes when the counter changes for the transition
+  const key = loading ? 'loading' : `total-${count}`;
+  
+  return (
+    <SwitchTransition mode="out-in">
+      <CSSTransition
+        key={key}
+        timeout={200}
+        classNames="counter"
+      >
+        <p className="font-medium">
+          {loading ? 'Loading items...' : 
+            `Total ${count} item${count !== 1 ? 's' : ''}`}
+        </p>
+      </CSSTransition>
+    </SwitchTransition>
+  );
+};
+
 export default function StoragePage({ params }: PageParams) {
   const router = useRouter();
   const { id } = params;
@@ -138,6 +160,8 @@ export default function StoragePage({ params }: PageParams) {
   const [selectedBox, setSelectedBox] = useState<string | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
   
+  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
+  
   // Fetch box data and items based on ID
   useEffect(() => {
     const fetchData = async () => {
@@ -169,19 +193,29 @@ export default function StoragePage({ params }: PageParams) {
     fetchData();
   }, [areaIdentifier]);
   
-  // Filter items when search term changes
+  // Filter items when search term or low stock filter changes
   useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredItems(items);
-    } else {
+    let filtered = [...items];
+    
+    // Filter by search term
+    if (searchTerm.trim() !== '') {
       const searchTermLower = searchTerm.toLowerCase();
-      const filtered = items.filter(item => 
+      filtered = filtered.filter(item => 
         item.name.toLowerCase().includes(searchTermLower) || 
         (item.category && item.category.toLowerCase().includes(searchTermLower))
       );
-      setFilteredItems(filtered);
     }
-  }, [searchTerm, items]);
+    
+    // Filter by low stock if enabled
+    if (showLowStockOnly) {
+      filtered = filtered.filter(item => {
+        const minQuantity = item.minQuantity !== undefined ? item.minQuantity : 0;
+        return item.quantity <= minQuantity;
+      });
+    }
+    
+    setFilteredItems(filtered);
+  }, [searchTerm, items, showLowStockOnly]);
   
   // Handle quantity changes
   const handleQuantityChange = async (itemId: string, change: number) => {
@@ -468,6 +502,28 @@ export default function StoragePage({ params }: PageParams) {
         </div>
         
         <div className="flex items-center space-x-3">
+          {/* Low Stock Filter - Modern Custom Checkbox */}
+          <label className="flex items-center cursor-pointer mr-2">
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={showLowStockOnly}
+                onChange={(e) => setShowLowStockOnly(e.target.checked)}
+                className="sr-only" // Hide the actual checkbox
+              />
+              <div className={`w-5 h-5 border-2 rounded transition-all duration-200 flex items-center justify-center ${
+                showLowStockOnly 
+                  ? 'bg-red-600 border-red-600' 
+                  : 'bg-dark-blue-light border-gray-500 hover:border-gray-300'
+              }`}>
+                {showLowStockOnly && (
+                  <FaCheck className="text-white text-xs" />
+                )}
+              </div>
+            </div>
+            <span className="ml-2 text-white text-sm">Missing Items</span>
+          </label>
+          
           {/* View Toggle Button */}
           <button
             onClick={() => setIsGridView(!isGridView)}
@@ -487,6 +543,11 @@ export default function StoragePage({ params }: PageParams) {
             <span>Add Item</span>
           </button>
         </div>
+      </div>
+      
+      {/* Item Count - with animation */}
+      <div className="mb-2 text-gray-300 h-6 overflow-hidden">
+        <AnimatedCounter count={filteredItems.length} loading={loading} />
       </div>
       
       {/* Search Box */}
@@ -519,143 +580,40 @@ export default function StoragePage({ params }: PageParams) {
             const isLowStock = item.quantity <= minQuantity;
             
             return (
-              <div 
-                key={item.id} 
-                className={`bg-slate-700 rounded-lg shadow-lg overflow-hidden transition-transform hover:scale-105 ${isLowStock ? 'bg-red-900 bg-opacity-70' : ''}`}
+              <CSSTransition
+                key={item.id}
+                timeout={300}
+                classNames="item"
               >
-                <div className="p-4 flex flex-col items-center h-full">
-                  {/* Title above icon */}
-                  <h3 className="font-bold text-xl text-center text-white mb-3">{item.name}</h3>
-                  
-                  {/* Icon - bigger and centered */}
-                  <div className="text-6xl text-gray-300 mb-3 flex-grow flex items-center justify-center">
-                    {React.createElement(getIconComponent(item.iconName || 'FaBox'))}
-                  </div>
-                  
-                  {/* Category (if available) */}
-                  {item.category && (
-                    <span className="bg-primary-800 px-2 py-1 rounded text-xs text-white mb-2">
-                      {item.category}
-                    </span>
-                  )}
-                  
-                  {/* Notes (if available) */}
-                  {item.notes && (
-                    <p className="text-sm text-gray-300 mb-2 text-center line-clamp-2">{item.notes}</p>
-                  )}
-                  
-                  {/* Display min quantity warning if applicable */}
-                  {item.minQuantity !== undefined && item.minQuantity > 0 && item.quantity <= item.minQuantity && (
-                    <div className="mb-2 text-center">
-                      <span className="bg-red-700 px-1.5 py-0.5 rounded text-xs text-white">
-                        Low Stock (Min: {item.minQuantity})
-                      </span>
-                    </div>
-                  )}
-                  
-                  {/* Divider */}
-                  <div className="w-full border-t border-gray-600 my-2"></div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex justify-between w-full">
-                    <button
-                      onClick={() => handleEditClick(item)}
-                      className="p-2 text-white hover:text-white rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
-                      title="Edit Item"
-                    >
-                      <FaPencilAlt />
-                    </button>
-                    
-                    <button
-                      onClick={() => handleTransferClick(item)}
-                      className="p-2 text-white hover:text-blue-400 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
-                      title="Transfer to Another Storage"
-                    >
-                      <FaExchangeAlt />
-                    </button>
-                    
-                    <button
-                      onClick={() => handleDeleteItem(item.id)}
-                      className="p-2 text-white hover:text-red-500 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
-                      title="Delete Item"
-                    >
-                      <FaTrash />
-                    </button>
-                  </div>
-                  
-                  {/* Quantity adjustment */}
-                  <div className="flex items-center bg-dark-blue rounded-md overflow-hidden mt-2 w-full justify-center">
-                    <button 
-                      onClick={() => handleQuantityChange(item.id, -1)}
-                      disabled={item.quantity <= 0}
-                      className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
-                      title="Decrease Quantity"
-                    >
-                      <FaMinus />
-                    </button>
-                    
-                    <span className="text-white px-2">{item.quantity}</span>
-                    
-                    <button
-                      onClick={() => handleQuantityChange(item.id, 1)}
-                      className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
-                      title="Increase Quantity"
-                    >
-                      <FaPlus />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        // List View (existing code)
-        <div className="bg-dark-blue rounded-lg shadow-lg overflow-hidden">
-          <ul className="divide-y divide-gray-800">
-            {filteredItems.map(item => {
-              // Check if this is a low stock item (quantity <= minQuantity)
-              // Use 0 as default minimum quantity if undefined
-              const minQuantity = item.minQuantity !== undefined ? item.minQuantity : 0;
-              const isLowStock = item.quantity <= minQuantity;
-              
-              return (
-                <li 
-                  key={item.id} 
-                  className={`p-4 hover:bg-dark-blue-light transition-colors ${isLowStock ? 'bg-red-900 bg-opacity-70 hover:bg-red-800' : ''}`}
+                <div 
+                  className={`bg-slate-700 rounded-lg shadow-lg overflow-hidden transition-all duration-300 ${isLowStock ? 'bg-red-900 bg-opacity-70' : ''}`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {item.iconName && (
-                        <div className="text-2xl text-gray-300">
-                          {React.createElement(getIconComponent(item.iconName))}
-                        </div>
-                      )}
-                      <div>
-                        <h3 className="font-semibold text-lg text-black">{item.name}</h3>
-                        <div className="text-sm text-black flex items-center space-x-2 font-medium">
-                          <span className={`${isLowStock ? 'text-white font-bold' : ''}`}>
-                            Quantity: {item.quantity}{item.unit ? ` ${item.unit}` : ''}
-                          </span>
-                          {item.minQuantity !== undefined && item.minQuantity > 0 && (
-                            <span className={`${isLowStock ? 'bg-red-700' : 'bg-gray-800'} px-1.5 py-0.5 rounded text-xs text-white`}>
-                              Min: {item.minQuantity}
-                            </span>
-                          )}
-                          {item.category && (
-                            <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs text-white">
-                              {item.category}
-                            </span>
-                          )}
-                        </div>
-                        {item.notes && (
-                          <p className="text-sm text-black mt-1">{item.notes}</p>
-                        )}
-                      </div>
+                  <div className="p-4 flex flex-col items-center h-full">
+                    {/* Title above icon */}
+                    <h3 className="font-bold text-xl text-center text-white mb-3">{item.name}</h3>
+                    
+                    {/* Icon - bigger and centered */}
+                    <div className="text-6xl text-gray-300 mb-3 flex-grow flex items-center justify-center">
+                      {React.createElement(getIconComponent(item.iconName || 'FaBox'))}
                     </div>
                     
-                    <div className="flex items-center space-x-2">
-                      {/* Edit button */}
+                    {/* Category (if available) */}
+                    {item.category && (
+                      <span className="bg-primary-800 px-2 py-1 rounded text-xs text-white mb-2">
+                        {item.category}
+                      </span>
+                    )}
+                    
+                    {/* Notes (if available) */}
+                    {item.notes && (
+                      <p className="text-sm text-gray-300 mb-2 text-center line-clamp-2">{item.notes}</p>
+                    )}
+                    
+                    {/* Divider */}
+                    <div className="w-full border-t border-gray-600 my-2"></div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex justify-between w-full">
                       <button
                         onClick={() => handleEditClick(item)}
                         className="p-2 text-white hover:text-white rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
@@ -664,7 +622,6 @@ export default function StoragePage({ params }: PageParams) {
                         <FaPencilAlt />
                       </button>
                       
-                      {/* Transfer button - new */}
                       <button
                         onClick={() => handleTransferClick(item)}
                         className="p-2 text-white hover:text-blue-400 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
@@ -673,7 +630,6 @@ export default function StoragePage({ params }: PageParams) {
                         <FaExchangeAlt />
                       </button>
                       
-                      {/* Delete button */}
                       <button
                         onClick={() => handleDeleteItem(item.id)}
                         className="p-2 text-white hover:text-red-500 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
@@ -681,9 +637,20 @@ export default function StoragePage({ params }: PageParams) {
                       >
                         <FaTrash />
                       </button>
+                    </div>
+                    
+                    {/* Quantity adjustment */}
+                    <div className="w-full mt-2 relative pb-6">
+                      {/* Display min quantity warning as absolute at bottom right */}
+                      {item.minQuantity !== undefined && item.minQuantity > 0 && item.quantity <= item.minQuantity && (
+                        <div className="absolute bottom-0 right-0">
+                          <span className="bg-red-700 px-1.5 py-0.5 rounded text-xs text-white inline-block">
+                            Low Stock (Min: {item.minQuantity})
+                          </span>
+                        </div>
+                      )}
                       
-                      {/* Quantity adjustment buttons */}
-                      <div className="flex items-center bg-dark-blue-light rounded-md overflow-hidden">
+                      <div className="flex items-center bg-dark-blue rounded-md overflow-hidden w-full justify-center">
                         <button 
                           onClick={() => handleQuantityChange(item.id, -1)}
                           disabled={item.quantity <= 0}
@@ -693,7 +660,7 @@ export default function StoragePage({ params }: PageParams) {
                           <FaMinus />
                         </button>
                         
-                        <span className="text-black px-2">{item.quantity}</span>
+                        <span className="text-white px-2">{item.quantity}</span>
                         
                         <button
                           onClick={() => handleQuantityChange(item.id, 1)}
@@ -705,9 +672,113 @@ export default function StoragePage({ params }: PageParams) {
                       </div>
                     </div>
                   </div>
-                </li>
-              );
-            })}
+                </div>
+              </CSSTransition>
+            );
+          })}
+        </div>
+      ) : (
+        // List View
+        <div className="bg-dark-blue rounded-lg shadow-lg overflow-hidden">
+          <ul className="divide-y divide-gray-800">
+            <TransitionGroup>
+              {filteredItems.map(item => {
+                // Check if this is a low stock item
+                const minQuantity = item.minQuantity !== undefined ? item.minQuantity : 0;
+                const isLowStock = item.quantity <= minQuantity;
+                
+                return (
+                  <CSSTransition
+                    key={item.id}
+                    timeout={300}
+                    classNames="item"
+                  >
+                    <li 
+                      className={`p-4 hover:bg-dark-blue-light transition-all duration-300 ${isLowStock ? 'bg-red-900 bg-opacity-70 hover:bg-red-800' : ''}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          {item.iconName && (
+                            <div className="text-2xl text-gray-300">
+                              {React.createElement(getIconComponent(item.iconName))}
+                            </div>
+                          )}
+                          <div>
+                            <h3 className="font-semibold text-lg text-black">{item.name}</h3>
+                            <div className="text-sm text-black flex items-center space-x-2 font-medium">
+                              <span className={`${isLowStock ? 'text-white font-bold' : ''}`}>
+                                Quantity: {item.quantity}{item.unit ? ` ${item.unit}` : ''}
+                              </span>
+                              {item.category && (
+                                <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs text-white">
+                                  {item.category}
+                                </span>
+                              )}
+                            </div>
+                            {item.notes && (
+                              <p className="text-sm text-black mt-1">{item.notes}</p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          {/* Edit button */}
+                          <button
+                            onClick={() => handleEditClick(item)}
+                            className="p-2 text-white hover:text-white rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                            title="Edit Item"
+                          >
+                            <FaPencilAlt />
+                          </button>
+                          
+                          {/* Transfer button */}
+                          <button
+                            onClick={() => handleTransferClick(item)}
+                            className="p-2 text-white hover:text-blue-400 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                            title="Transfer to Another Storage"
+                          >
+                            <FaExchangeAlt />
+                          </button>
+                          
+                          {/* Delete button */}
+                          <button
+                            onClick={() => handleDeleteItem(item.id)}
+                            className="p-2 text-white hover:text-red-500 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                            title="Delete Item"
+                          >
+                            <FaTrash />
+                          </button>
+                          
+                          {/* Quantity adjustment buttons */}
+                          <div className="flex flex-col items-end">
+                            <div className="flex items-center bg-dark-blue-light rounded-md overflow-hidden">
+                              <button 
+                                onClick={() => handleQuantityChange(item.id, -1)}
+                                disabled={item.quantity <= 0}
+                                className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
+                                title="Decrease Quantity"
+                              >
+                                <FaMinus />
+                              </button>
+                              
+                              <span className="text-black px-2">{item.quantity}</span>
+                              
+                              <button
+                                onClick={() => handleQuantityChange(item.id, 1)}
+                                className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
+                                title="Increase Quantity"
+                              >
+                                <FaPlus />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  </CSSTransition>
+                );
+              })}
+            </TransitionGroup>
           </ul>
         </div>
       )}
