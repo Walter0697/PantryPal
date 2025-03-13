@@ -1,6 +1,7 @@
 {
  "name": "PantryPal",
  "short_name": "PantryPal",
+ "version": "0.3.0",
  "description": "Track your kitchen inventory, create shopping lists, and never run out of essential ingredients again.",
  "start_url": "/",
  "display": "standalone",
