@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
-import { FaUtensils, FaBars, FaSignOutAlt, FaList } from 'react-icons/fa';
+import { FaBars, FaSignOutAlt, FaList } from 'react-icons/fa';
+import Image from 'next/image';
 import { useAuth } from './AuthProvider';
 import { useRouter } from 'next/navigation';
 
@@ -37,7 +38,7 @@ export default function Navigation() {
             className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity" 
             onClick={navigateToHome}
           >
-            <FaUtensils className="text-secondary-500 text-2xl" />
+            <Image src="/assets/pp.png" alt="PantryPal Logo" width={28} height={28} className="rounded-md" />
             <span className="text-xl font-bold text-white hover:text-secondary-500 transition-colors">PantryPal</span>
           </div>
           

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FaUser, FaLock, FaUtensils, FaEnvelope, FaKey } from 'react-icons/fa';
+import { FaUser, FaLock, FaEnvelope, FaKey } from 'react-icons/fa';
+import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { authenticate, completeNewPassword, forgotPassword, confirmForgotPassword } from './actions';
 import { useAuth } from '../components/AuthProvider';
@@ -527,7 +528,13 @@ function LoginPageContent() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <FaUtensils className="text-secondary-500 text-5xl" />
+            <Image
+              src="/assets/pp.png"
+              alt="PantryPal Logo"
+              width={80}
+              height={80}
+              className="rounded-md"
+            />
           </div>
           <h1 className="text-3xl font-bold text-white">
             {showPasswordChange ? 'Change Your Password' : showForgotPassword ? 'Reset Password' : 'Welcome to PantryPal'}

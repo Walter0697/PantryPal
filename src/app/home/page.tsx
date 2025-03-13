@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { FaEdit, FaSave, FaTimesCircle, FaList } from 'react-icons/fa';
+import { FaPencilAlt, FaSave, FaTimesCircle, FaList } from 'react-icons/fa';
 import dynamic from 'next/dynamic';
 import { Layout } from 'react-grid-layout';
 import { useAuth } from '../../components/AuthProvider';
@@ -56,9 +56,20 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentLayouts, setCurrentLayouts] = useState<LayoutConfig>({});
   const [temporaryLayouts, setTemporaryLayouts] = useState<LayoutConfig>({});
+  const [titleAnimated, setTitleAnimated] = useState(false);
   
   // Reference to the GridLayout component with proper typing
   const gridLayoutRef = useRef<GridLayoutRef>(null);
+
+  // Trigger title animation on component mount
+  useEffect(() => {
+    // Small delay to ensure DOM is fully loaded
+    const animationTimer = setTimeout(() => {
+      setTitleAnimated(true);
+    }, 100);
+    
+    return () => clearTimeout(animationTimer);
+  }, []);
 
   // Validate token on component mount
   useEffect(() => {
@@ -235,29 +246,44 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto px-4 py-8 relative">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">
-          Your Home Layout
+      {/* Header section with buttons and title */}
+      <div className="w-full flex justify-between items-center mb-4">
+        <button 
+          onClick={navigateToListView}
+          className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center"
+          title="List View"
+        >
+          <FaList className="mr-2" />
+          <span>List View</span>
+        </button>
+        
+        {/* Center title with animation */}
+        <h1 
+          className={`text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white text-center 
+            transition-all duration-700 transform ${
+              titleAnimated 
+                ? 'translate-y-0 opacity-100 scale-100' 
+                : 'translate-y-4 opacity-0 scale-95'
+            }`}
+        >
+          <span className={`inline-block transition-transform ${titleAnimated ? 'animate-pulse-once' : ''}`}>🍳</span>
+          <span className="mx-2">PantryPal</span>
+          <span 
+            className={`inline-block transition-transform ${titleAnimated ? 'animate-pulse-once' : ''}`}
+            style={{ animationDelay: '0.3s' }}
+          >🥘</span>
         </h1>
         
+        {/* Edit Controls - right side */}
         <div className="flex space-x-2">
-          {/* List View button - shown regardless of edit mode */}
-          <button 
-            onClick={navigateToListView}
-            className="bg-dark-blue hover:bg-dark-blue-light text-white p-2 rounded-md shadow-sm border border-primary-700 action-button"
-            title="List View"
-          >
-            <FaList className="text-xl" />
-          </button>
-          
-          {/* Edit Controls */}
           {!isEditMode ? (
             <button
               onClick={handleEditClick}
-              className="bg-dark-blue hover:bg-dark-blue-light text-white p-2 rounded-md shadow-sm border border-primary-700 action-button"
+              className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center"
               title="Edit Layout"
             >
-              <FaEdit className="text-xl" />
+              <FaPencilAlt className="mr-2" />
+              <span>Edit Layout</span>
             </button>
           ) : (
             <>
@@ -284,7 +310,7 @@ export default function HomePage() {
       
       {/* Edit Mode Notice */}
       {isEditMode && (
-        <div className="bg-blue-100 dark:bg-blue-900 border border-blue-300 dark:border-blue-700 rounded p-4 mb-6">
+        <div className="bg-blue-100 dark:bg-blue-900 border border-blue-300 dark:border-blue-700 rounded p-4 mb-6 w-full">
           <p className="text-blue-800 dark:text-blue-300 text-center">
             <span className="font-semibold">Edit Mode</span> - Drag boxes to rearrange your home layout.
           </p>
@@ -293,11 +319,11 @@ export default function HomePage() {
       
       {/* Grid Layout Component */}
       {isLoading ? (
-        <div className="flex justify-center items-center h-64">
+        <div className="flex justify-center items-center h-64 w-full">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
         </div>
       ) : (
-        <div className="mb-8">
+        <div className="w-full mb-8">
           <GridLayoutComponent
             ref={gridLayoutRef}
             isEditMode={isEditMode}
