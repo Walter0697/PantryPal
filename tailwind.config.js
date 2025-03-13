@@ -41,6 +41,16 @@ module.exports = {
       scale: {
         '102': '1.02',
       },
+      keyframes: {
+        'pulse-once': {
+          '0%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.2)' },
+          '100%': { transform: 'scale(1)' },
+        },
+      },
+      animation: {
+        'pulse-once': 'pulse-once 1s ease-in-out forwards',
+      },
     },
   },
   plugins: [],
