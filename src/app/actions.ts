@@ -13,6 +13,11 @@ import {
   GetUserAttributeVerificationCodeCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 
+// Import storage-related utilities
+import { getAreas } from '../util/server-only/gridStorage';
+import { getAreaItems } from '../util/server-only/storageStorage';
+import { StorageItem } from '../util/storageItems';
+
 // Get AWS credentials 
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
@@ -589,5 +594,56 @@ export async function updateUserEmail(token: string, email: string) {
         ? 'Unable to update email. Please try again later.' 
         : `Error: ${error.message}` 
     };
+  }
+}
+
+// New interface for returning storage with its items
+export interface StorageWithItems {
+  id: string;
+  name: string;
+  identifier: string;
+  iconName?: string;
+  color?: string;
+  items: StorageItem[];
+}
+
+/**
+ * Fetches all items from all storage areas for the current user
+ * Returns an array of storage areas, each containing their items
+ */
+export async function getAllStorageItems(): Promise<StorageWithItems[]> {
+  try {
+    // For simplicity, we use 'single-user' as our userId as indicated in the existing code
+    const userId = 'single-user';
+    
+    // 1. Get all storage areas
+    const areas = await getAreas(userId);
+    
+    // 2. Create an array to hold results
+    const storagesWithItems: StorageWithItems[] = [];
+    
+    // 3. Fetch items for each storage area
+    for (const area of areas) {
+      // Skip areas without identifiers
+      if (!area.identifier) continue;
+      
+      // Get items for this area
+      const items = await getAreaItems(userId, area.identifier);
+      
+      // Add to result if there are items or we want to show empty storages too
+      storagesWithItems.push({
+        id: area.id,
+        name: area.name,
+        identifier: area.identifier,
+        iconName: area.iconName,
+        color: area.color,
+        items: items
+      });
+    }
+    
+    return storagesWithItems;
+  } catch (error) {
+    console.error('Error fetching all storage items:', error);
+    return [];
   }
 }

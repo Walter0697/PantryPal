@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaEdit, FaTrash, FaArrowLeft, FaSave, FaTimesCircle, FaPlus } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaArrowLeft, FaSave, FaTimesCircle, FaPlus, FaLayerGroup } from 'react-icons/fa';
 import { IconType } from 'react-icons';
 import * as Icons from 'react-icons/fa6';
 import { AreaItem, getAreas, updateArea, removeArea, addArea, isAreaNameDuplicate, isAreaIdentifierDuplicate } from '../../util/storage';
@@ -224,6 +224,13 @@ export default function ListPage() {
           >
             <FaPlus className="mr-2" />
             <span>Create New Box</span>
+          </button>
+          <button
+            onClick={() => router.push('/all-items')}
+            className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
+          >
+            <FaLayerGroup className="mr-2" />
+            <span>All Items</span>
           </button>
           <button
             onClick={handleBackClick}

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { FaPencilAlt, FaSave, FaTimesCircle, FaList } from 'react-icons/fa';
+import { FaPencilAlt, FaSave, FaTimesCircle, FaList, FaLayerGroup } from 'react-icons/fa';
 import dynamic from 'next/dynamic';
 import { Layout } from 'react-grid-layout';
 import { useAuth } from '../../components/AuthProvider';
@@ -248,14 +248,25 @@ export default function HomePage() {
     <div className="container mx-auto px-4 py-8 relative">
       {/* Header section with buttons and title */}
       <div className="w-full flex justify-between items-center mb-4">
-        <button 
-          onClick={navigateToListView}
-          className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center"
-          title="List View"
-        >
-          <FaList className="mr-2" />
-          <span>List View</span>
-        </button>
+        <div className="flex space-x-2">
+          <button 
+            onClick={navigateToListView}
+            className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center"
+            title="List View"
+          >
+            <FaList className="mr-2" />
+            <span>List View</span>
+          </button>
+          
+          <button 
+            onClick={() => router.push('/all-items')}
+            className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center"
+            title="All Items"
+          >
+            <FaLayerGroup className="mr-2" />
+            <span>All Items</span>
+          </button>
+        </div>
         
         {/* Center title with animation */}
         <h1 
