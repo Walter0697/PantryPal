@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash, FaExchangeAlt } from 'react-icons/fa';
+import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash, FaExchangeAlt, FaList, FaTh } from 'react-icons/fa';
 import { getAreaByIdentifier, getAreas } from '../../../util/server-only/gridStorage';
 import { 
   getAreaItems, 
@@ -90,9 +90,13 @@ const ValueContainer = ({ data, children, ...props }: any) => (
 
 export default function StoragePage({ params }: PageParams) {
   const router = useRouter();
+  const { id } = params;
+  const decodedId = decodeURIComponent(id);
+  
+  const [isGridView, setIsGridView] = useState(false);
   
   // Get the area identifier from the URL parameter
-  const areaIdentifier = params.id;
+  const areaIdentifier = decodedId;
   
   const [boxName, setBoxName] = useState('');
   const [boxIdentifier, setBoxIdentifier] = useState('');
@@ -463,14 +467,26 @@ export default function StoragePage({ params }: PageParams) {
           </h1>
         </div>
         
-        {/* Add Item Button */}
-        <button
-          onClick={handleAddItemClick}
-          className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center cursor-pointer"
-        >
-          <FaPlus className="mr-2" />
-          <span>Add Item</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          {/* View Toggle Button */}
+          <button
+            onClick={() => setIsGridView(!isGridView)}
+            className="bg-dark-blue hover:bg-dark-blue-light text-white p-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
+            aria-label={isGridView ? "Switch to List View" : "Switch to Grid View"}
+            title={isGridView ? "Switch to List View" : "Switch to Grid View"}
+          >
+            {isGridView ? <FaList className="text-xl" /> : <FaTh className="text-xl" />}
+          </button>
+          
+          {/* Add Item Button */}
+          <button
+            onClick={handleAddItemClick}
+            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center cursor-pointer"
+          >
+            <FaPlus className="mr-2" />
+            <span>Add Item</span>
+          </button>
+        </div>
       </div>
       
       {/* Search Box */}
@@ -494,7 +510,107 @@ export default function StoragePage({ params }: PageParams) {
         </div>
       ) : filteredItems.length === 0 ? (
         <EmptyState onAddClick={handleAddItemClick} />
+      ) : isGridView ? (
+        // Grid View
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filteredItems.map(item => {
+            // Check if this is a low stock item (quantity <= minQuantity)
+            const minQuantity = item.minQuantity !== undefined ? item.minQuantity : 0;
+            const isLowStock = item.quantity <= minQuantity;
+            
+            return (
+              <div 
+                key={item.id} 
+                className={`bg-slate-700 rounded-lg shadow-lg overflow-hidden transition-transform hover:scale-105 ${isLowStock ? 'bg-red-900 bg-opacity-70' : ''}`}
+              >
+                <div className="p-4 flex flex-col items-center h-full">
+                  {/* Title above icon */}
+                  <h3 className="font-bold text-xl text-center text-white mb-3">{item.name}</h3>
+                  
+                  {/* Icon - bigger and centered */}
+                  <div className="text-6xl text-gray-300 mb-3 flex-grow flex items-center justify-center">
+                    {React.createElement(getIconComponent(item.iconName || 'FaBox'))}
+                  </div>
+                  
+                  {/* Category (if available) */}
+                  {item.category && (
+                    <span className="bg-primary-800 px-2 py-1 rounded text-xs text-white mb-2">
+                      {item.category}
+                    </span>
+                  )}
+                  
+                  {/* Notes (if available) */}
+                  {item.notes && (
+                    <p className="text-sm text-gray-300 mb-2 text-center line-clamp-2">{item.notes}</p>
+                  )}
+                  
+                  {/* Display min quantity warning if applicable */}
+                  {item.minQuantity !== undefined && item.minQuantity > 0 && item.quantity <= item.minQuantity && (
+                    <div className="mb-2 text-center">
+                      <span className="bg-red-700 px-1.5 py-0.5 rounded text-xs text-white">
+                        Low Stock (Min: {item.minQuantity})
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Divider */}
+                  <div className="w-full border-t border-gray-600 my-2"></div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex justify-between w-full">
+                    <button
+                      onClick={() => handleEditClick(item)}
+                      className="p-2 text-white hover:text-white rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                      title="Edit Item"
+                    >
+                      <FaPencilAlt />
+                    </button>
+                    
+                    <button
+                      onClick={() => handleTransferClick(item)}
+                      className="p-2 text-white hover:text-blue-400 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                      title="Transfer to Another Storage"
+                    >
+                      <FaExchangeAlt />
+                    </button>
+                    
+                    <button
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="p-2 text-white hover:text-red-500 rounded-full hover:bg-gray-800 transition-colors cursor-pointer"
+                      title="Delete Item"
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                  
+                  {/* Quantity adjustment */}
+                  <div className="flex items-center bg-dark-blue rounded-md overflow-hidden mt-2 w-full justify-center">
+                    <button 
+                      onClick={() => handleQuantityChange(item.id, -1)}
+                      disabled={item.quantity <= 0}
+                      className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
+                      title="Decrease Quantity"
+                    >
+                      <FaMinus />
+                    </button>
+                    
+                    <span className="text-white px-2">{item.quantity}</span>
+                    
+                    <button
+                      onClick={() => handleQuantityChange(item.id, 1)}
+                      className="p-2 text-white hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
+                      title="Increase Quantity"
+                    >
+                      <FaPlus />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
+        // List View (existing code)
         <div className="bg-dark-blue rounded-lg shadow-lg overflow-hidden">
           <ul className="divide-y divide-gray-800">
             {filteredItems.map(item => {
