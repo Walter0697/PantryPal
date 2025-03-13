@@ -2,11 +2,33 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaEdit, FaTrash, FaArrowLeft, FaSave, FaTimesCircle, FaPlus } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaArrowLeft, FaSave, FaTimesCircle, FaPlus, FaLayerGroup } from 'react-icons/fa';
 import { IconType } from 'react-icons';
 import * as Icons from 'react-icons/fa6';
+import { CSSTransition, TransitionGroup, SwitchTransition } from 'react-transition-group';
 import { AreaItem, getAreas, updateArea, removeArea, addArea, isAreaNameDuplicate, isAreaIdentifierDuplicate } from '../../util/storage';
 import RoomIconSelect from '../../components/RoomIconSelect';
+
+// Animated Counter Component for smooth transitions
+const AnimatedCounter = ({ count, loading }: { count: number, loading: boolean }) => {
+  // Create a key that changes when the counter changes for the transition
+  const key = loading ? 'loading' : `total-${count}`;
+  
+  return (
+    <SwitchTransition mode="out-in">
+      <CSSTransition
+        key={key}
+        timeout={200}
+        classNames="counter"
+      >
+        <p className="font-medium">
+          {loading ? 'Loading boxes...' : 
+            `Total ${count} box${count !== 1 ? 'es' : ''}`}
+        </p>
+      </CSSTransition>
+    </SwitchTransition>
+  );
+};
 
 export default function ListPage() {
   const router = useRouter();
@@ -226,6 +248,13 @@ export default function ListPage() {
             <span>Create New Box</span>
           </button>
           <button
+            onClick={() => router.push('/all-items')}
+            className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
+          >
+            <FaLayerGroup className="mr-2" />
+            <span>All Items</span>
+          </button>
+          <button
             onClick={handleBackClick}
             className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white hover:text-secondary-500 px-3 py-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
           >
@@ -233,6 +262,11 @@ export default function ListPage() {
             <span>Back to Dashboard</span>
           </button>
         </div>
+      </div>
+
+      {/* Box Count - with animation */}
+      <div className="mb-2 text-gray-300 h-6 overflow-hidden">
+        <AnimatedCounter count={filteredAreas.length} loading={isLoading} />
       </div>
 
       {/* Search */}
@@ -257,113 +291,121 @@ export default function ListPage() {
       ) : (
         <div className="bg-dark-blue rounded-lg shadow-lg overflow-hidden max-h-[70vh] overflow-y-auto">
           <ul className="divide-y divide-primary-700">
-            {Array.isArray(filteredAreas) && filteredAreas.map(item => {
-              const Icon = getIconComponent(item.iconName);
-              
-              return (
-                <li key={item.id} className="p-4 hover:bg-dark-blue-light transition-colors">
-                  {editingItem === item.id ? (
-                    <div className="flex flex-col space-y-4">
-                      <div>
-                        <label className="block text-gray-300 mb-1">Name</label>
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-gray-300 mb-1">Identifier (cannot be changed)</label>
-                        <input
-                          type="text"
-                          value={item.identifier}
-                          disabled
-                          className="w-full bg-dark-blue-light bg-opacity-50 border border-primary-700 rounded-md p-2 text-gray-400 cursor-not-allowed"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-gray-300 mb-1">Color</label>
-                        <div className="flex flex-wrap gap-2">
-                          {colorOptions.map(color => (
-                            <button
-                              key={color}
-                              type="button"
-                              className={`w-8 h-8 rounded-full ${color} ${editColor === color ? 'ring-2 ring-white' : ''} hover:opacity-80 transition-opacity cursor-pointer`}
-                              onClick={() => setEditColor(color)}
-                              aria-label={`Select ${color} color`}
+            <TransitionGroup>
+              {Array.isArray(filteredAreas) && filteredAreas.map(item => {
+                const Icon = getIconComponent(item.iconName);
+                
+                return (
+                  <CSSTransition
+                    key={item.id}
+                    timeout={300}
+                    classNames="item"
+                  >
+                    <li className="p-4 hover:bg-dark-blue-light transition-all duration-300">
+                      {editingItem === item.id ? (
+                        <div className="flex flex-col space-y-4">
+                          <div>
+                            <label className="block text-gray-300 mb-1">Name</label>
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="w-full bg-dark-blue-light bg-opacity-80 border border-primary-700 rounded-md p-2 text-white"
                             />
-                          ))}
+                          </div>
+                          
+                          <div>
+                            <label className="block text-gray-300 mb-1">Identifier (cannot be changed)</label>
+                            <input
+                              type="text"
+                              value={item.identifier}
+                              disabled
+                              className="w-full bg-dark-blue-light bg-opacity-50 border border-primary-700 rounded-md p-2 text-gray-400 cursor-not-allowed"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-gray-300 mb-1">Color</label>
+                            <div className="flex flex-wrap gap-2">
+                              {colorOptions.map(color => (
+                                <button
+                                  key={color}
+                                  type="button"
+                                  className={`w-8 h-8 rounded-full ${color} ${editColor === color ? 'ring-2 ring-white' : ''} hover:opacity-80 transition-opacity cursor-pointer`}
+                                  onClick={() => setEditColor(color)}
+                                  aria-label={`Select ${color} color`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-gray-300 mb-1">Icon</label>
+                            <RoomIconSelect
+                              value={editIcon}
+                              onChange={setEditIcon}
+                            />
+                          </div>
+                          
+                          <div className="flex justify-end space-x-2 mt-4">
+                            <button
+                              onClick={handleCancelEdit}
+                              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md shadow-sm border border-red-800 transition-colors flex items-center cursor-pointer"
+                            >
+                              <FaTimesCircle className="mr-1" />
+                              <span>Cancel</span>
+                            </button>
+                            <button
+                              onClick={() => handleSaveEdit(item.id)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-md shadow-sm border border-green-800 transition-colors flex items-center cursor-pointer"
+                            >
+                              <FaSave className="mr-1" />
+                              <span>Save</span>
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-gray-300 mb-1">Icon</label>
-                        <RoomIconSelect
-                          value={editIcon}
-                          onChange={setEditIcon}
-                        />
-                      </div>
-                      
-                      <div className="flex justify-end space-x-2 mt-4">
-                        <button
-                          onClick={handleCancelEdit}
-                          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md shadow-sm border border-red-800 transition-colors flex items-center cursor-pointer"
-                        >
-                          <FaTimesCircle className="mr-1" />
-                          <span>Cancel</span>
-                        </button>
-                        <button
-                          onClick={() => handleSaveEdit(item.id)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-md shadow-sm border border-green-800 transition-colors flex items-center cursor-pointer"
-                        >
-                          <FaSave className="mr-1" />
-                          <span>Save</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center">
-                        <div className={`${item.color} p-2 rounded-md mr-3`}>
-                          <Icon className="text-white text-xl" />
+                      ) : (
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center">
+                            <div className={`${item.color} p-2 rounded-md mr-3`}>
+                              <Icon className="text-white text-xl" />
+                            </div>
+                            <div>
+                              <span className="text-black font-medium">{item.name}</span>
+                              <div className="text-black text-sm font-medium">ID: {item.identifier}</div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => router.push(`/storage/${item.identifier}`)}
+                              className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-md shadow-sm border border-green-800 transition-colors cursor-pointer"
+                              title="Go to Storage"
+                            >
+                              <Icons.FaBoxOpen />
+                            </button>
+                            <button
+                              onClick={() => handleEditClick(item)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md shadow-sm border border-blue-800 transition-colors cursor-pointer"
+                              title="Edit"
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              onClick={() => handleRemoveClick(item.id)}
+                              className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-md shadow-sm border border-red-800 transition-colors cursor-pointer"
+                              title="Remove"
+                            >
+                              <FaTrash />
+                            </button>
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-black font-medium">{item.name}</span>
-                          <div className="text-black text-sm font-medium">ID: {item.identifier}</div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => router.push(`/storage/${item.identifier}`)}
-                          className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-md shadow-sm border border-green-800 transition-colors cursor-pointer"
-                          title="Go to Storage"
-                        >
-                          <Icons.FaBoxOpen />
-                        </button>
-                        <button
-                          onClick={() => handleEditClick(item)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md shadow-sm border border-blue-800 transition-colors cursor-pointer"
-                          title="Edit"
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          onClick={() => handleRemoveClick(item.id)}
-                          className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-md shadow-sm border border-red-800 transition-colors cursor-pointer"
-                          title="Remove"
-                        >
-                          <FaTrash />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
+                      )}
+                    </li>
+                  </CSSTransition>
+                );
+              })}
+            </TransitionGroup>
           </ul>
         </div>
       )}
