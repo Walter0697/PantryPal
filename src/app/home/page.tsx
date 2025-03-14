@@ -247,38 +247,38 @@ export default function HomePage() {
   return (
     <div className="container mx-auto px-4 py-8 relative">
       {/* Header section with buttons and title */}
-      <div className="w-full flex justify-between items-center mb-4">
-        <div className="flex space-x-2">
+      <div className="w-full flex justify-between items-start mb-4 relative">
+        <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2 z-10 items-start">
           <button 
             onClick={navigateToListView}
-            className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center"
+            className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center justify-center"
             title="List View"
           >
-            <FaList className="mr-2" />
-            <span>List View</span>
+            <FaList className="md:mr-2" />
+            <span className="hidden md:inline">List View</span>
           </button>
           
           <button 
             onClick={() => router.push('/all-items')}
-            className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center"
+            className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center justify-center"
             title="All Items"
           >
-            <FaLayerGroup className="mr-2" />
-            <span>All Items</span>
+            <FaLayerGroup className="md:mr-2" />
+            <span className="hidden md:inline">All Items</span>
           </button>
         </div>
         
-        {/* Center title with animation */}
+        {/* Center title with animation - now absolute positioned */}
         <h1 
-          className={`text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white text-center 
-            transition-all duration-700 transform ${
+          className={`absolute left-1/2 transform -translate-x-1/2 text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 dark:text-white text-center 
+            transition-all duration-700 z-20 whitespace-nowrap ${
               titleAnimated 
-                ? 'translate-y-0 opacity-100 scale-100' 
-                : 'translate-y-4 opacity-0 scale-95'
+                ? 'opacity-100 scale-100' 
+                : 'opacity-0 scale-95'
             }`}
         >
           <span className={`inline-block transition-transform ${titleAnimated ? 'animate-pulse-once' : ''}`}>🍳</span>
-          <span className="mx-2">PantryPal</span>
+          <span className="mx-1 sm:mx-2">PantryPal</span>
           <span 
             className={`inline-block transition-transform ${titleAnimated ? 'animate-pulse-once' : ''}`}
             style={{ animationDelay: '0.3s' }}
@@ -286,45 +286,49 @@ export default function HomePage() {
         </h1>
         
         {/* Edit Controls - right side */}
-        <div className="flex space-x-2">
+        <div className="flex z-10 items-start">
           {!isEditMode ? (
             <button
               onClick={handleEditClick}
-              className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center"
+              className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 action-button flex items-center justify-center"
               title="Edit Layout"
             >
-              <FaPencilAlt className="mr-2" />
-              <span>Edit Layout</span>
+              <FaPencilAlt className="md:mr-2" />
+              <span className="hidden md:inline">Edit Layout</span>
             </button>
           ) : (
-            <>
+            <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2">
               <button
                 onClick={handleSaveClick}
-                className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center"
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center justify-center"
                 title="Save Layout"
               >
-                <FaSave className="mr-1" />
-                <span>Save</span>
+                <FaSave className="md:mr-1" />
+                <span className="hidden md:inline">Save</span>
               </button>
               <button
                 onClick={handleCancelClick}
-                className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md shadow-sm border border-red-800 transition-colors flex items-center"
+                className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md shadow-sm border border-red-800 transition-colors flex items-center justify-center"
                 title="Cancel Editing"
               >
-                <FaTimesCircle className="mr-1" />
-                <span>Cancel</span>
+                <FaTimesCircle className="md:mr-1" />
+                <span className="hidden md:inline">Cancel</span>
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>
       
       {/* Edit Mode Notice */}
       {isEditMode && (
-        <div className="bg-blue-100 dark:bg-blue-900 border border-blue-300 dark:border-blue-700 rounded p-4 mb-6 w-full">
-          <p className="text-blue-800 dark:text-blue-300 text-center">
-            <span className="font-semibold">Edit Mode</span> - Drag boxes to rearrange your home layout.
-          </p>
+        <div className="bg-blue-100 dark:bg-blue-900 border border-blue-300 dark:border-blue-700 rounded p-3 md:p-4 mb-4 md:mb-6 w-full">
+          <div className="flex items-center justify-center">
+            <FaPencilAlt className="text-blue-600 dark:text-blue-400 mr-2" />
+            <p className="text-blue-800 dark:text-blue-300 text-center text-sm md:text-base">
+              <span className="font-semibold md:inline">Edit Mode</span>
+              <span className="hidden md:inline"> - Drag boxes to rearrange your home layout.</span>
+            </p>
+          </div>
         </div>
       )}
       

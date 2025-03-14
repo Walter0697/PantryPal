@@ -237,29 +237,29 @@ export default function ListPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">Box List</h1>
+      <div className="flex justify-between items-start mb-6">
+        <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white">Box List</h1>
         <div className="flex space-x-2">
           <button
             onClick={handleCreateClick}
-            className="flex items-center bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors cursor-pointer"
+            className="flex items-center justify-center bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors cursor-pointer"
           >
-            <FaPlus className="mr-2" />
-            <span>Create New Box</span>
+            <FaPlus className="text-lg md:mr-2" />
+            <span className="hidden md:inline">Create New Box</span>
           </button>
           <button
             onClick={() => router.push('/all-items')}
-            className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
+            className="flex items-center justify-center bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
           >
-            <FaLayerGroup className="mr-2" />
-            <span>All Items</span>
+            <FaLayerGroup className="text-lg md:mr-2" />
+            <span className="hidden md:inline">All Items</span>
           </button>
           <button
             onClick={handleBackClick}
-            className="flex items-center bg-dark-blue hover:bg-dark-blue-light text-white hover:text-secondary-500 px-3 py-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
+            className="flex items-center justify-center bg-dark-blue hover:bg-dark-blue-light text-white hover:text-secondary-500 px-3 py-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
           >
-            <FaArrowLeft className="mr-2" />
-            <span>Back to Dashboard</span>
+            <FaArrowLeft className="text-lg md:mr-2" />
+            <span className="hidden md:inline">Back to Dashboard</span>
           </button>
         </div>
       </div>

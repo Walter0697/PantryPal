@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaBox, FaExchangeAlt, FaPencilAlt, FaTrash, FaCheck } from 'react-icons/fa';
+import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaBox, FaExchangeAlt, FaPencilAlt, FaTrash, FaCheck, FaShoppingBasket } from 'react-icons/fa';
 import * as Icons from 'react-icons/fa6';
 import { IconType } from 'react-icons';
 import { CSSTransition, TransitionGroup, SwitchTransition } from 'react-transition-group';
@@ -15,7 +15,7 @@ const getIconComponent = (iconName: string): IconType => {
 };
 
 // Animated Counter Component for smooth transitions
-const AnimatedCounter = ({ count, loading }: { count: number, loading: boolean }) => {
+const AnimatedCounter = ({ count, loading, isSmall = false }: { count: number, loading: boolean, isSmall?: boolean }) => {
   // Create a key that changes when the counter changes for the transition
   const key = loading ? 'loading' : `total-${count}`;
   
@@ -26,8 +26,10 @@ const AnimatedCounter = ({ count, loading }: { count: number, loading: boolean }
         timeout={200}
         classNames="counter"
       >
-        <p className="font-medium">
-          {loading ? 'Loading items...' : 
+        <p className={`font-medium ${isSmall ? 'text-sm text-white' : ''}`}>
+          {loading ? (isSmall ? 'Loading...' : 'Loading items...') : 
+            isSmall ? 
+            `${count} ${count === 1 ? 'item' : 'items'}` : 
             `Total ${count} item${count !== 1 ? 's' : ''}`}
         </p>
       </CSSTransition>
@@ -127,7 +129,7 @@ export default function AllItemsPage() {
             <FaArrowLeft className="text-xl" />
           </button>
           
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white">
             All Items
           </h1>
         </div>
@@ -152,7 +154,10 @@ export default function AllItemsPage() {
                 )}
               </div>
             </div>
-            <span className="ml-2 text-white text-sm">Missing Items</span>
+            <div className="ml-2 flex items-center">
+              <FaShoppingBasket className="text-gray-300 text-xl" title="Filter Missing Items" />
+              <span className="hidden md:inline text-white text-xs md:text-sm ml-1">Missing Items</span>
+            </div>
           </label>
         </div>
       </div>
@@ -210,8 +215,8 @@ export default function AllItemsPage() {
                       )}
                       <h2 className="text-xl font-bold text-white">{storage.name}</h2>
                     </div>
-                    <div className="text-sm text-white font-medium">
-                      {storage.items.length} {storage.items.length === 1 ? 'item' : 'items'}
+                    <div className="h-5">
+                      <AnimatedCounter count={storage.items.length} loading={false} isSmall={true} />
                     </div>
                   </div>
                   

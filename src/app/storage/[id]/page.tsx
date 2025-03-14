@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash, FaExchangeAlt, FaList, FaTh, FaCheck } from 'react-icons/fa';
+import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash, FaExchangeAlt, FaList, FaTh, FaCheck, FaFilter, FaShoppingBasket } from 'react-icons/fa';
 import { CSSTransition, TransitionGroup, SwitchTransition } from 'react-transition-group';
 import { getAreaByIdentifier, getAreas } from '../../../util/server-only/gridStorage';
 import { 
@@ -496,7 +496,7 @@ export default function StoragePage({ params }: PageParams) {
             <FaArrowLeft className="text-xl" />
           </button>
           
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white">
             {boxName || 'Storage'}
           </h1>
         </div>
@@ -521,26 +521,32 @@ export default function StoragePage({ params }: PageParams) {
                 )}
               </div>
             </div>
-            <span className="ml-2 text-white text-sm">Missing Items</span>
+            <div className="ml-2 flex items-center">
+              <FaShoppingBasket className="text-gray-300 text-xl" title="Filter Missing Items" />
+              <span className="hidden md:inline text-white text-xs md:text-sm ml-1">Missing Items</span>
+            </div>
           </label>
           
           {/* View Toggle Button */}
           <button
             onClick={() => setIsGridView(!isGridView)}
-            className="bg-dark-blue hover:bg-dark-blue-light text-white p-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer"
+            className="bg-dark-blue hover:bg-dark-blue-light text-white px-3 py-2 rounded-md shadow-sm border border-primary-700 transition-colors cursor-pointer flex items-center justify-center"
             aria-label={isGridView ? "Switch to List View" : "Switch to Grid View"}
             title={isGridView ? "Switch to List View" : "Switch to Grid View"}
           >
-            {isGridView ? <FaList className="text-xl" /> : <FaTh className="text-xl" />}
+            {isGridView ? <FaList className="text-lg" /> : <FaTh className="text-lg" />}
+            <span className="hidden md:inline ml-2">
+              {isGridView ? "List View" : "Grid View"}
+            </span>
           </button>
           
           {/* Add Item Button */}
           <button
             onClick={handleAddItemClick}
-            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center cursor-pointer"
+            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md shadow-sm border border-green-800 transition-colors flex items-center justify-center cursor-pointer"
           >
-            <FaPlus className="mr-2" />
-            <span>Add Item</span>
+            <FaPlus className="text-lg md:mr-2" />
+            <span className="hidden md:inline">Add Item</span>
           </button>
         </div>
       </div>
