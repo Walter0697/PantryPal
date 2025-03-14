@@ -234,13 +234,17 @@ export default function HomePage() {
   // Prevent scrolling when in edit mode
   useEffect(() => {
     if (isEditMode) {
-      document.body.style.overflow = 'hidden';
+      // Allow scrolling but block other interactions
+      document.body.style.overflow = 'auto';
+      document.body.classList.add('edit-mode');
     } else {
       document.body.style.overflow = 'auto';
+      document.body.classList.remove('edit-mode');
     }
     
     return () => {
       document.body.style.overflow = 'auto';
+      document.body.classList.remove('edit-mode');
     };
   }, [isEditMode]);
 
