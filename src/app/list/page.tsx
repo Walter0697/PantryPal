@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaEdit, FaTrash, FaArrowLeft, FaSave, FaTimesCircle, FaPlus, FaLayerGroup } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaArrowLeft, FaSave, FaTimesCircle, FaPlus, FaLayerGroup, FaTimes } from 'react-icons/fa';
 import { IconType } from 'react-icons';
 import * as Icons from 'react-icons/fa6';
 import { CSSTransition, TransitionGroup, SwitchTransition } from 'react-transition-group';
@@ -270,14 +270,23 @@ export default function ListPage() {
       </div>
 
       {/* Search */}
-      <div className="mb-6">
+      <div className="mb-6 relative">
         <input
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search boxes..."
-          className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white"
+          className="w-full bg-dark-blue-light border border-primary-700 rounded-md p-2 text-white pr-10"
         />
+        {searchTerm && (
+          <div 
+            className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer"
+            onClick={() => setSearchTerm('')}
+            aria-label="Clear search"
+          >
+            <FaTimes className="text-gray-400 hover:text-white transition-colors" />
+          </div>
+        )}
       </div>
 
       {isLoading ? (

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaBox, FaExchangeAlt, FaPencilAlt, FaTrash, FaCheck, FaShoppingBasket } from 'react-icons/fa';
+import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaBox, FaExchangeAlt, FaPencilAlt, FaTrash, FaCheck, FaShoppingBasket, FaTimes } from 'react-icons/fa';
 import * as Icons from 'react-icons/fa6';
 import { IconType } from 'react-icons';
 import { CSSTransition, TransitionGroup, SwitchTransition } from 'react-transition-group';
@@ -177,8 +177,17 @@ export default function AllItemsPage() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search items across all storages..."
-          className="w-full pl-10 pr-4 py-2 bg-dark-blue-light border border-primary-700 rounded-md text-white"
+          className="w-full pl-10 pr-10 py-2 bg-dark-blue-light border border-primary-700 rounded-md text-white"
         />
+        {searchTerm && (
+          <div 
+            className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer"
+            onClick={() => setSearchTerm('')}
+            aria-label="Clear search"
+          >
+            <FaTimes className="text-gray-400 hover:text-white transition-colors" />
+          </div>
+        )}
       </div>
       
       {/* Content Area */}
@@ -245,10 +254,13 @@ export default function AllItemsPage() {
                                     </div>
                                   )}
                                   <div>
-                                    <h3 className="font-semibold text-lg text-white">{item.name}</h3>
+                                    <h3 className="font-semibold text-lg text-white">
+                                      {item.name}
+                                      {item.unit && <span className="text-blue-300 text-sm ml-1 font-medium">({item.unit})</span>}
+                                    </h3>
                                     <div className="text-sm text-gray-300 flex items-center space-x-2 font-medium">
                                       <span className={`${isLowStock ? 'text-red-300 font-bold' : ''}`}>
-                                        Quantity: {item.quantity}{item.unit ? ` ${item.unit}` : ''}
+                                        Quantity: <span className="font-bold">{item.quantity}</span>
                                       </span>
                                       {item.category && (
                                         <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs text-white">

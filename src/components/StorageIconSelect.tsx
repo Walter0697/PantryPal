@@ -1,6 +1,8 @@
 import React from 'react';
 import Select from 'react-select';
 import * as Icons from 'react-icons/fa6';
+import * as CiIcons from 'react-icons/ci';
+import * as GiIcons from 'react-icons/gi';
 import { IconType } from 'react-icons';
 
 // Icon data with both name and component
@@ -12,7 +14,12 @@ interface IconOption {
 
 // Get icon component from name
 const getIconComponent = (iconName: string): IconType => {
-  return (Icons as Record<string, IconType>)[iconName] || Icons.FaBox;
+  if (iconName.startsWith('Ci')) {
+    return (CiIcons as any)[iconName];
+  } else if (iconName.startsWith('Gi')) {
+    return (GiIcons as any)[iconName];
+  }
+  return (Icons as any)[iconName] || Icons.FaBox;
 };
 
 // Create the options array for the select with human-readable labels
@@ -28,6 +35,22 @@ const createIconOptions = (iconNames: string[]): IconOption[] => {
     'FaBottleWater': 'Water/Drinks',
     'FaWineBottle': 'Alcoholic Drinks',
     'FaMugHot': 'Hot Beverages',
+    'FaCheese': 'Cheese',
+    'FaIceCream': 'Ice Cream',
+    'FaCarrot': 'Vegetables',
+    'FaBurger': 'Burger/Sandwich',
+    'FaPizzaSlice': 'Pizza',
+    'FaLemon': 'Citrus/Fruit',
+    'FaCookie': 'Baked Goods/Cookies',
+    'FaDrumstickBite': 'Poultry',
+    'FaHotdog': 'Sausage/Hot Dog',
+    'FaBacon': 'Bacon/Pork',
+    'FaWheatAlt': 'Grains/Wheat',
+    'FaCoffee': 'Coffee',
+    'FaShrimp': 'Shellfish/Seafood',
+    'FaBowlRice': 'Rice',
+    'CiBowlNoodles': 'Noodles',
+    'FaSeedling': 'Beans/Legumes',
     
     // Sauces and seasonings
     'FaJar': 'Jar/Preserve',
@@ -62,7 +85,7 @@ const createIconOptions = (iconNames: string[]): IconOption[] => {
 
   return iconNames.map(name => ({
     value: name,
-    label: iconLabels[name] || name.replace('Fa', ''),
+    label: iconLabels[name] || name.replace(/^(Fa|Ci|Gi)/, ''),
     icon: getIconComponent(name)
   }));
 };
@@ -71,7 +94,10 @@ const createIconOptions = (iconNames: string[]): IconOption[] => {
 const availableIcons = [
   // Food ingredients and drinks
   'FaBowlFood', 'FaAppleWhole', 'FaEgg', 'FaBreadSlice', 'FaMeatFrozen', 'FaFish',
-  'FaBottleWater', 'FaWineBottle', 'FaMugHot',
+  'FaBottleWater', 'FaWineBottle', 'FaMugHot', 'FaCheese', 'FaIceCream', 'FaCarrot',
+  'FaBurger', 'FaPizzaSlice', 'FaLemon', 'FaCookie', 'FaDrumstickBite',
+  'FaHotdog', 'FaBacon', 'FaWheatAlt', 'FaCoffee', 'FaShrimp', 'FaPepperHot',
+  'FaBowlRice', 'CiBowlNoodles', 'FaSeedling',
   
   // Sauces and seasonings
   'FaJar', 'FaBottleDroplet', 'FaDroplet', 'FaPepperHot',

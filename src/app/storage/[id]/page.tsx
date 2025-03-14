@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash, FaExchangeAlt, FaList, FaTh, FaCheck, FaFilter, FaShoppingBasket } from 'react-icons/fa';
+import { FaArrowLeft, FaSearch, FaPlus, FaMinus, FaPencilAlt, FaRobot, FaTrash, FaExchangeAlt, FaList, FaTh, FaCheck, FaFilter, FaShoppingBasket, FaTimes } from 'react-icons/fa';
 import { CSSTransition, TransitionGroup, SwitchTransition } from 'react-transition-group';
 import { getAreaByIdentifier, getAreas } from '../../../util/server-only/gridStorage';
 import { 
@@ -13,6 +13,8 @@ import {
   createNewItem
 } from '../../../util/storageItems';
 import * as Icons from 'react-icons/fa6';
+import * as CiIcons from 'react-icons/ci';
+import * as GiIcons from 'react-icons/gi';
 import { IconType } from 'react-icons';
 import StorageIconSelect from '../../../components/StorageIconSelect';
 import Select from 'react-select';
@@ -25,6 +27,11 @@ type PageParams = {
 
 // Get icon component from name
 const getIconComponent = (iconName: string): IconType => {
+  if (iconName.startsWith('Ci')) {
+    return (CiIcons as any)[iconName];
+  } else if (iconName.startsWith('Gi')) {
+    return (GiIcons as any)[iconName];
+  }
   return (Icons as any)[iconName] || Icons.FaBox;
 };
 
@@ -32,7 +39,10 @@ const getIconComponent = (iconName: string): IconType => {
 const availableIcons = [
   // Food ingredients and drinks
   'FaBowlFood', 'FaAppleWhole', 'FaEgg', 'FaBreadSlice', 'FaMeatFrozen', 'FaFish',
-  'FaBottleWater', 'FaWineBottle', 'FaMugHot',
+  'FaBottleWater', 'FaWineBottle', 'FaMugHot', 'FaCheese', 'FaIceCream', 'FaCarrot',
+  'FaBurger', 'FaPizzaSlice', 'FaLemon', 'FaCookie', 'FaDrumstickBite',
+  'FaHotdog', 'FaBacon', 'FaWheatAlt', 'FaCoffee', 'FaShrimp', 'FaPepperHot',
+  'FaBowlRice', 'CiBowlNoodles', 'FaSeedling',
   
   // Sauces and seasonings
   'FaJar', 'FaBottleDroplet', 'FaDroplet', 'FaPepperHot',
@@ -566,8 +576,17 @@ export default function StoragePage({ params }: PageParams) {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search items..."
-          className="w-full pl-10 pr-4 py-2 bg-dark-blue-light border border-primary-700 rounded-md text-white"
+          className="w-full pl-10 pr-10 py-2 bg-dark-blue-light border border-primary-700 rounded-md text-white"
         />
+        {searchTerm && (
+          <div 
+            className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer"
+            onClick={() => setSearchTerm('')}
+            aria-label="Clear search"
+          >
+            <FaTimes className="text-gray-400 hover:text-white transition-colors" />
+          </div>
+        )}
       </div>
       
       {/* Content Area */}
@@ -596,7 +615,10 @@ export default function StoragePage({ params }: PageParams) {
                 >
                   <div className="p-4 flex flex-col items-center h-full">
                     {/* Title above icon */}
-                    <h3 className="font-bold text-xl text-center text-white mb-3">{item.name}</h3>
+                    <h3 className="font-bold text-xl text-center text-white mb-3">
+                      {item.name}
+                      {item.unit && <span className="text-blue-300 text-sm ml-1 font-medium">({item.unit})</span>}
+                    </h3>
                     
                     {/* Icon - bigger and centered */}
                     <div className="text-6xl text-gray-300 mb-3 flex-grow flex items-center justify-center">
@@ -666,7 +688,9 @@ export default function StoragePage({ params }: PageParams) {
                           <FaMinus />
                         </button>
                         
-                        <span className="text-white px-2">{item.quantity}</span>
+                        <span className="text-white px-2">
+                          {item.quantity}
+                        </span>
                         
                         <button
                           onClick={() => handleQuantityChange(item.id, 1)}
@@ -710,10 +734,13 @@ export default function StoragePage({ params }: PageParams) {
                             </div>
                           )}
                           <div>
-                            <h3 className="font-semibold text-lg text-black">{item.name}</h3>
+                            <h3 className="font-semibold text-lg text-black">
+                              {item.name}
+                              {item.unit && <span className="text-blue-400 text-sm ml-1 font-medium">({item.unit})</span>}
+                            </h3>
                             <div className="text-sm text-black flex items-center space-x-2 font-medium">
                               <span className={`${isLowStock ? 'text-white font-bold' : ''}`}>
-                                Quantity: {item.quantity}{item.unit ? ` ${item.unit}` : ''}
+                                Quantity: <span className="font-bold">{item.quantity}</span>
                               </span>
                               {item.category && (
                                 <span className="bg-primary-800 px-1.5 py-0.5 rounded text-xs text-white">
