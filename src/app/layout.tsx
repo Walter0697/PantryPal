@@ -13,9 +13,22 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#0066ff',
+};
+
 export const metadata = {
-  title: 'PantryPal - Manage Your Kitchen Inventory',
-  description: 'Track your kitchen inventory, create shopping lists, and never run out of essential ingredients again.',
+  title: 'PantryPal',
+  description: 'Manage your kitchen inventory and shopping lists',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'PantryPal',
+  },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
@@ -33,6 +46,7 @@ export const metadata = {
       { url: '/apple-icon-144x144.png', sizes: '144x144', type: 'image/png' },
       { url: '/apple-icon-152x152.png', sizes: '152x152', type: 'image/png' },
       { url: '/apple-icon-180x180.png', sizes: '180x180', type: 'image/png' },
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
     ],
     other: [
       { rel: 'manifest', url: '/manifest.json' },
