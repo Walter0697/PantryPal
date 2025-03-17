@@ -32,19 +32,7 @@ const withPWA = require('next-pwa')({
       options: {
         cacheName: 'static-resources',
       },
-    },
-    {
-      urlPattern: /^https:\/\/(?:api\.pantrypal\.com|rw-pantrypal\.com)/,
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'api-responses',
-        networkTimeoutSeconds: 10,
-        expiration: {
-          maxEntries: 50,
-          maxAgeSeconds: 60 * 60, // 1 hour
-        },
-      },
-    },
+    }
   ],
 });
 
@@ -63,24 +51,7 @@ const nextConfig = {
           {
             key: 'Content-Type',
             value: 'application/manifest+json',
-          },
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=3600',
-          },
-        ],
-      },
-      {
-        source: '/app.webmanifest',
-        headers: [
-          {
-            key: 'Content-Type',
-            value: 'application/manifest+json',
-          },
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=3600',
-          },
+          }
         ],
       },
       {
@@ -93,32 +64,14 @@ const nextConfig = {
         ],
       },
       {
-        source: '/icons/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=86400',
-          },
-        ],
-      },
-      {
         source: '/sw.js',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=0, must-revalidate',
+            value: 'no-cache, no-store, must-revalidate',
           },
         ],
-      },
-      {
-        source: '/workbox-:hash.js',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000',
-          },
-        ],
-      },
+      }
     ];
   },
 };
