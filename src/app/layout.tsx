@@ -18,6 +18,7 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   themeColor: '#0066ff',
+  viewportFit: 'cover',
 };
 
 export const metadata = {
@@ -28,30 +29,37 @@ export const metadata = {
     capable: true,
     statusBarStyle: 'default',
     title: 'PantryPal',
+    startupImage: [
+      {
+        url: '/icons/icon-192x192.png',
+        media: '(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)',
+      },
+      {
+        url: '/icons/icon-512x512.png',
+        media: '(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)',
+      },
+    ],
   },
   icons: {
     icon: [
-      { url: '/favicon.ico', sizes: 'any' },
-      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
-      { url: '/apple-icon-57x57.png', sizes: '57x57', type: 'image/png' },
-      { url: '/apple-icon-60x60.png', sizes: '60x60', type: 'image/png' },
-      { url: '/apple-icon-72x72.png', sizes: '72x72', type: 'image/png' },
-      { url: '/apple-icon-76x76.png', sizes: '76x76', type: 'image/png' },
-      { url: '/apple-icon-114x114.png', sizes: '114x114', type: 'image/png' },
-      { url: '/apple-icon-120x120.png', sizes: '120x120', type: 'image/png' },
-      { url: '/apple-icon-144x144.png', sizes: '144x144', type: 'image/png' },
-      { url: '/apple-icon-152x152.png', sizes: '152x152', type: 'image/png' },
-      { url: '/apple-icon-180x180.png', sizes: '180x180', type: 'image/png' },
       { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
     ],
     other: [
-      { rel: 'manifest', url: '/manifest.json' },
-      { rel: 'msapplication-config', url: '/browserconfig.xml' },
+      {
+        rel: 'apple-touch-icon',
+        url: '/icons/icon-192x192.png',
+      },
     ],
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'default',
+    'apple-mobile-web-app-title': 'PantryPal',
   },
 };
 
@@ -65,6 +73,14 @@ export default async function RootLayout({
   
   return (
     <html lang="en">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="PantryPal" />
+        <meta name="theme-color" content="#0066ff" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+      </head>
       <body className={`${inter.variable} antialiased flex flex-col min-h-screen`}>
         <AuthProvider>
           <Toaster 

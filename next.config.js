@@ -12,6 +12,19 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV !== 'development',
   },
+  async headers() {
+    return [
+      {
+        source: '/manifest.json',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/manifest+json',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = withPWA(nextConfig); 
