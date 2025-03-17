@@ -2,11 +2,12 @@
  "name": "PantryPal",
  "short_name": "PantryPal",
  "description": "Manage your kitchen inventory and shopping lists",
- "version": "3.1.1",
+ "version": "3.1.2",
  "start_url": "/",
  "id": "/",
+ "scope": "/",
  "display": "standalone",
- "display_override": ["standalone", "minimal-ui"],
+ "display_override": ["standalone", "minimal-ui", "fullscreen"],
  "background_color": "#ffffff",
  "theme_color": "#0066ff",
  "orientation": "portrait",
@@ -32,6 +33,12 @@
    "sizes": "192x192",
    "type": "image/png",
    "purpose": "maskable"
+  },
+  {
+   "src": "/icons/apple-touch-icon.png",
+   "sizes": "180x180",
+   "type": "image/png",
+   "purpose": "any apple"
   }
  ],
  "screenshots": [
