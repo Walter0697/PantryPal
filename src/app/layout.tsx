@@ -25,7 +25,7 @@ export const viewport = {
 export const metadata = {
   title: 'PantryPal',
   description: 'Manage your kitchen inventory and shopping lists',
-  manifest: '/manifest.json',
+  manifest: ['/manifest.json', '/app.webmanifest'],
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -43,16 +43,29 @@ export const metadata = {
   },
   icons: {
     icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
+      { url: '/apple-icon.png', sizes: 'any' },
+      { url: '/apple-icon-57x57.png', sizes: '57x57', type: 'image/png' },
+      { url: '/apple-icon-60x60.png', sizes: '60x60', type: 'image/png' },
+      { url: '/apple-icon-72x72.png', sizes: '72x72', type: 'image/png' },
+      { url: '/apple-icon-76x76.png', sizes: '76x76', type: 'image/png' },
+      { url: '/apple-icon-114x114.png', sizes: '114x114', type: 'image/png' },
+      { url: '/apple-icon-120x120.png', sizes: '120x120', type: 'image/png' },
+      { url: '/apple-icon-144x144.png', sizes: '144x144', type: 'image/png' },
+      { url: '/apple-icon-152x152.png', sizes: '152x152', type: 'image/png' },
+      { url: '/apple-icon-180x180.png', sizes: '180x180', type: 'image/png' },
       { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
     ],
     other: [
       {
         rel: 'apple-touch-icon',
-        url: '/icons/icon-192x192.png',
+        url: '/apple-icon.png',
       },
     ],
   },
@@ -75,21 +88,40 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Standard favicon */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+        
+        {/* PWA manifest and related tags */}
         <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/app.webmanifest" />
+        <meta name="theme-color" content="#0066ff" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="PantryPal" />
-        <meta name="theme-color" content="#0066ff" />
         <meta name="application-name" content="PantryPal" />
         <meta name="msapplication-TileColor" content="#0066ff" />
         <meta name="msapplication-tap-highlight" content="no" />
         <meta name="format-detection" content="telephone=no" />
         
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        {/* Apple touch icons */}
+        <link rel="apple-touch-icon" href="/apple-icon.png" />
+        <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png" />
+        <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png" />
+        <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png" />
+        <link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png" />
+        <link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png" />
+        <link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png" />
+        <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-        <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+        
+        {/* Microsoft tiles */}
+        <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
+        <meta name="msapplication-config" content="/browserconfig.xml" />
         
         {/* iOS splash screens for different devices */}
         <link

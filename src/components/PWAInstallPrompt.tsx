@@ -87,7 +87,7 @@ export default function PWAInstallPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-primary-700 text-white p-4 rounded-lg shadow-lg flex flex-col items-center max-w-sm">
+    <div id="pwa-install-prompt" className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-primary-700 text-white p-4 rounded-lg shadow-lg flex flex-col items-center max-w-sm">
       <p className="mb-2 text-center">
         {isIOS
           ? 'Install this app on your iPhone: tap the Share button and then "Add to Home Screen"'
