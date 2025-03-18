@@ -188,3 +188,42 @@ button:not(:disabled) {
   transform: translateY(-5px);
   transition: opacity 200ms ease-in, transform 200ms ease-in;
 }
+
+/* Typing animation for chat */
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.animate-typing {
+  animation: blink 0.7s infinite;
+}
+
+/* Loading dots animations */
+@keyframes dot1 {
+  0%, 20% { opacity: 0; }
+  40%, 100% { opacity: 1; }
+}
+
+@keyframes dot2 {
+  0%, 40% { opacity: 0; }
+  60%, 100% { opacity: 1; }
+}
+
+@keyframes dot3 {
+  0%, 60% { opacity: 0; }
+  80%, 100% { opacity: 1; }
+}
+
+.animate-dot1 {
+  animation: dot1 1.5s infinite;
+}
+
+.animate-dot2 {
+  animation: dot2 1.5s infinite;
+}
+
+.animate-dot3 {
+  animation: dot3 1.5s infinite;
+}

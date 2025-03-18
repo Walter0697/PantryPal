@@ -10,6 +10,11 @@ import { getLayouts, saveLayouts, LayoutConfig } from '../../util/storage';
 import { GridLayoutRef } from '../../components/GridLayout';
 import toast from 'react-hot-toast';
 
+// Import ChatButton component dynamically
+const ChatButton = dynamic(() => import('../../components/ChatButton'), {
+  ssr: false,
+});
+
 // Validate token on page load
 function validateStoredToken() {
   if (typeof window !== 'undefined') {
@@ -351,6 +356,9 @@ export default function HomePage() {
           />
         </div>
       )}
+      
+      {/* Add ChatButton - only show for logged in users and when not in edit mode */}
+      {isLoggedIn && !isEditMode && <ChatButton />}
     </div>
   );
 }
