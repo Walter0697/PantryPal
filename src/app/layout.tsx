@@ -32,7 +32,7 @@ export const metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.ico' },
+      { url: '/api/favicon' },
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
     ],
@@ -43,7 +43,7 @@ export const metadata = {
     other: [
       {
         rel: 'manifest',
-        url: '/manifest.json',
+        url: '/api/manifest',
       },
     ],
   },
@@ -69,11 +69,11 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* Standard favicon - Next.js will automatically include most of these from metadata */}
-        <link rel="icon" href="/favicon.ico" sizes="any" />
+        {/* Standard favicon - Using our API route instead of direct path */}
+        <link rel="icon" href="/api/favicon" sizes="any" />
         
-        {/* PWA manifest */}
-        <link rel="manifest" href="/manifest.json" />
+        {/* PWA manifest - Using our API route */}
+        <link rel="manifest" href="/api/manifest" />
         
         {/* Apple-specific tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />

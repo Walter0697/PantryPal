@@ -126,7 +126,7 @@ export function middleware(request: NextRequest) {
 // See "Matching Paths" below to learn more
 export const config = {
   matcher: [
-    // Match all routes except static files, etc.
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    // Match all routes except static files, API routes and other public paths
+    '/((?!_next|public|favicon\\.ico|manifest\\.json|.*\\.(?:jpg|jpeg|gif|png|ico|svg|webp|js|css)).*)',
   ],
 };
