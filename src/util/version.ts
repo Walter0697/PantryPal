@@ -4,7 +4,7 @@
  */
 
 // Read version from an environment variable that can be set at build time or use package.json version
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '3.1.3';
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '1.1.4';
 
 /**
  * Returns the current application version
