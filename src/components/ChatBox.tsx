@@ -13,6 +13,222 @@ interface Message {
   fullContent?: string; // Store the full content while typing
 }
 
+// Add a helper function to parse and format special content
+const formatSpecialContent = (content: string): React.ReactNode => {
+  // Split the content by potential special tags
+  const parts: React.ReactNode[] = [];
+  let currentText = '';
+  let inList = false;
+  let inTable = false;
+  let listItems: string[] = [];
+  let tableRows: string[] = [];
+  
+  // Process the content line by line
+  const lines = content.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Handle list opening tag
+    if (line.includes('<list>')) {
+      // Add any accumulated text before the list
+      if (currentText) {
+        parts.push(currentText);
+        currentText = '';
+      }
+      inList = true;
+      // Add any content after the opening tag to the first list item
+      const afterTag = line.substring(line.indexOf('<list>') + 6).trim();
+      if (afterTag && afterTag.startsWith('-')) {
+        listItems.push(afterTag.substring(1).trim());
+      }
+      continue;
+    }
+    
+    // Handle list closing tag
+    if (line.includes('</list>') && inList) {
+      // Render the list
+      if (listItems.length > 0) {
+        parts.push(
+          <ul key={`list-${parts.length}`} className="list-disc pl-8 my-4 space-y-2 bg-gray-100 p-4 rounded-lg border border-gray-300">
+            {listItems.map((item: string, index: number) => (
+              <li key={index} className="text-gray-800 pb-1 px-2">{item}</li>
+            ))}
+          </ul>
+        );
+      }
+      
+      // Reset list state
+      inList = false;
+      listItems = [];
+      
+      // Handle any content after the closing tag
+      const afterTag = line.substring(line.indexOf('</list>') + 7).trim();
+      if (afterTag) {
+        currentText = afterTag;
+      }
+      continue;
+    }
+    
+    // Add list items
+    if (inList && line.startsWith('-')) {
+      listItems.push(line.substring(1).trim());
+      continue;
+    }
+    
+    // Handle table opening tag
+    if (line.includes('<table>')) {
+      // Add any accumulated text before the table
+      if (currentText) {
+        parts.push(currentText);
+        currentText = '';
+      }
+      inTable = true;
+      // Add any content after the opening tag to the first table row
+      const afterTag = line.substring(line.indexOf('<table>') + 7).trim();
+      if (afterTag) {
+        tableRows.push(afterTag);
+      }
+      continue;
+    }
+    
+    // Handle table closing tag
+    if (line.includes('</table>') && inTable) {
+      // Render the table if we have enough rows
+      if (tableRows.length >= 2) {
+        try {
+          // Extract header row
+          const headerRow = tableRows[0];
+          const headerCells = headerRow.split('|')
+            .filter((cell: string) => cell.trim() !== '')
+            .map((cell: string) => cell.trim());
+          
+          // Skip separator row and parse data rows
+          const dataRows = tableRows.slice(2).map((row: string) => {
+            return row.split('|')
+              .filter((cell: string) => cell.trim() !== '')
+              .map((cell: string) => cell.trim());
+          }).filter((row: string[]) => row.length > 0);
+          
+          if (headerCells.length > 0) {
+            parts.push(
+              <div key={`table-${parts.length}`} className="overflow-x-auto my-4 rounded-lg border border-gray-300 shadow-sm">
+                <table className="min-w-full bg-white">
+                  <thead>
+                    <tr className="bg-blue-50 border-b border-gray-300">
+                      {headerCells.map((cell: string, idx: number) => (
+                        <th key={idx} className="py-3 px-6 text-left font-semibold text-gray-700">{cell}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dataRows.map((row: string[], rowIdx: number) => (
+                      <tr key={rowIdx} className={rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        {row.map((cell: string, cellIdx: number) => (
+                          <td key={cellIdx} className="py-3 px-6 border-t border-gray-200">{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          }
+        } catch (e) {
+          // If table parsing fails, output the raw rows
+          parts.push(<div key={`table-raw-${parts.length}`}>{tableRows.join('\n')}</div>);
+        }
+      }
+      
+      // Reset table state
+      inTable = false;
+      tableRows = [];
+      
+      // Handle any content after the closing tag
+      const afterTag = line.substring(line.indexOf('</table>') + 8).trim();
+      if (afterTag) {
+        currentText = afterTag;
+      }
+      continue;
+    }
+    
+    // Add table rows
+    if (inTable) {
+      tableRows.push(line);
+      continue;
+    }
+    
+    // Handle normal content
+    if (!inList && !inTable) {
+      currentText += (currentText ? '\n' : '') + line;
+    }
+  }
+  
+  // Add any remaining list
+  if (inList && listItems.length > 0) {
+    parts.push(
+      <ul key={`list-${parts.length}`} className="list-disc pl-8 my-4 space-y-2 bg-gray-100 p-4 rounded-lg border border-gray-300">
+        {listItems.map((item: string, index: number) => (
+          <li key={index} className="text-gray-800 pb-1 px-2">{item}</li>
+        ))}
+      </ul>
+    );
+  }
+  
+  // Add any remaining table
+  if (inTable && tableRows.length >= 2) {
+    try {
+      // Extract header row
+      const headerRow = tableRows[0];
+      const headerCells = headerRow.split('|')
+        .filter((cell: string) => cell.trim() !== '')
+        .map((cell: string) => cell.trim());
+      
+      // Skip separator row and parse data rows
+      const dataRows = tableRows.slice(2).map((row: string) => {
+        return row.split('|')
+          .filter((cell: string) => cell.trim() !== '')
+          .map((cell: string) => cell.trim());
+      }).filter((row: string[]) => row.length > 0);
+      
+      if (headerCells.length > 0) {
+        parts.push(
+          <div key={`table-${parts.length}`} className="overflow-x-auto my-4 rounded-lg border border-gray-300 shadow-sm">
+            <table className="min-w-full bg-white">
+              <thead>
+                <tr className="bg-blue-50 border-b border-gray-300">
+                  {headerCells.map((cell: string, idx: number) => (
+                    <th key={idx} className="py-3 px-6 text-left font-semibold text-gray-700">{cell}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dataRows.map((row: string[], rowIdx: number) => (
+                  <tr key={rowIdx} className={rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    {row.map((cell: string, cellIdx: number) => (
+                      <td key={cellIdx} className="py-3 px-6 border-t border-gray-200">{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+    } catch (e) {
+      // If table parsing fails, output the raw rows
+      parts.push(<div key={`table-raw-${parts.length}`}>{tableRows.join('\n')}</div>);
+    }
+  }
+  
+  // Add any remaining text
+  if (currentText) {
+    parts.push(currentText);
+  }
+  
+  return parts.length > 0 ? <>{parts}</> : content;
+};
+
 interface ChatBoxProps {
   onClose: () => void;
 }
@@ -353,12 +569,18 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg flex flex-col h-full w-full overflow-hidden">
-      {/* Header */}
-      <div className="bg-blue-700 text-white p-3 flex justify-between items-center">
+    <div className="bg-white rounded-lg shadow-lg flex flex-col h-[90vh] max-h-[90vh] w-full overflow-hidden">
+      {/* Header - Make entire header clickable */}
+      <div 
+        className="bg-blue-700 text-white p-3 flex justify-between items-center cursor-pointer"
+        onClick={onClose}
+      >
         <h3 className="font-semibold text-lg">PantryPal Assistant</h3>
         <button 
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent triggering parent onClick
+            onClose();
+          }}
           className="text-white hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-white rounded p-1"
           aria-label="Close chat"
         >
@@ -386,10 +608,23 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
                   <span className="inline-block animate-dot3">.</span>
                 </div>
               ) : (
-                message.content
-              )}
-              {message.isStreaming && message.content !== 'Thinking' && (
-                <span className="inline-block w-1.5 h-4 ml-1 bg-gray-700 animate-typing"></span>
+                <>
+                  {message.role === 'assistant' && typeof message.content === 'string' ? (
+                    <>
+                      {formatSpecialContent(message.content)}
+                      {message.isStreaming && (
+                        <span className="inline-block w-1.5 h-4 ml-1 bg-gray-700 animate-typing"></span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {message.content}
+                      {message.isStreaming && (
+                        <span className="inline-block w-1.5 h-4 ml-1 bg-gray-700 animate-typing"></span>
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </div>
           ))}
