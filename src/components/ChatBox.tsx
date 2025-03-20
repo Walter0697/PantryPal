@@ -11,6 +11,7 @@ interface Message {
   timestamp: Date;
   isStreaming?: boolean;
   fullContent?: string; // Store the full content while typing
+  isNew?: boolean; // Flag to identify new messages for animation
 }
 
 // Add a helper function to parse and format special content
@@ -33,7 +34,11 @@ const formatSpecialContent = (content: string): React.ReactNode => {
     if (line.includes('<list>')) {
       // Add any accumulated text before the list
       if (currentText) {
-        parts.push(currentText);
+        // Preserve newlines in text content by splitting and joining with br tags
+        const formattedText = currentText.split('\n').map((text, index) => 
+          index === 0 ? text : <React.Fragment key={index}><br />{text}</React.Fragment>
+        );
+        parts.push(<>{formattedText}</>);
         currentText = '';
       }
       inList = true;
@@ -80,7 +85,11 @@ const formatSpecialContent = (content: string): React.ReactNode => {
     if (line.includes('<table>')) {
       // Add any accumulated text before the table
       if (currentText) {
-        parts.push(currentText);
+        // Preserve newlines in text content
+        const formattedText = currentText.split('\n').map((text, index) => 
+          index === 0 ? text : <React.Fragment key={index}><br />{text}</React.Fragment>
+        );
+        parts.push(<>{formattedText}</>);
         currentText = '';
       }
       inTable = true;
@@ -223,7 +232,11 @@ const formatSpecialContent = (content: string): React.ReactNode => {
   
   // Add any remaining text
   if (currentText) {
-    parts.push(currentText);
+    // Preserve newlines in text content
+    const formattedText = currentText.split('\n').map((text, index) => 
+      index === 0 ? text : <React.Fragment key={index}><br />{text}</React.Fragment>
+    );
+    parts.push(<>{formattedText}</>);
   }
   
   return parts.length > 0 ? <>{parts}</> : content;
@@ -237,7 +250,7 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Hello! How can I help you with your pantry management today?',
+      content: 'Hey there! 👋 I\'m Pantrio, your fun kitchen buddy! Ready to make your pantry sparkle? Let me help you get organized!\n\n你好！👋 我是 Pantrio，你的廚房助手。我可以幫助你整理廚房和食物儲存。',
       role: 'assistant',
       timestamp: new Date(),
     },
@@ -245,7 +258,7 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [typingSpeed, setTypingSpeed] = useState(30); // Milliseconds per character
+  const [baseTypingSpeed, setBaseTypingSpeed] = useState(180); // Increased from 120 to 180ms for even slower typing
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -295,10 +308,46 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
       // Add one more character
       const updatedContent = fullText.substring(0, currentLength + 1);
       
-      // Schedule the next character
+      // Get the current character and next character
+      const currentChar = fullText.charAt(currentLength);
+      const prevChar = currentLength > 0 ? fullText.charAt(currentLength - 1) : '';
+      
+      // Determine appropriate delay based on the characters
+      let delay = baseTypingSpeed;
+      
+      // Add randomness to typing speed (±30%)
+      const randomFactor = 0.7 + (Math.random() * 0.6); // random between 0.7 and 1.3
+      delay = delay * randomFactor;
+      
+      // Word boundary (space) - add extra delay
+      if (currentChar === ' ') {
+        delay = baseTypingSpeed * 2.5;
+      }
+      
+      // End of sentence - add even more delay
+      if (['.', '!', '?'].includes(prevChar) && currentChar === ' ') {
+        delay = baseTypingSpeed * 7;
+      }
+      
+      // Comma, colon, semicolon - add moderate delay
+      if ([',', ':', ';'].includes(prevChar)) {
+        delay = baseTypingSpeed * 4;
+      }
+      
+      // Line break - add substantial delay
+      if (currentChar === '\n') {
+        delay = baseTypingSpeed * 8;
+      }
+      
+      // Occasional random "thinking" pause (7% chance, but not at the beginning)
+      if (currentLength > 10 && Math.random() < 0.07) {
+        delay = baseTypingSpeed * 10;
+      }
+      
+      // Schedule the next character with the calculated delay
       typingTimerRef.current = setTimeout(() => {
         typeMessage(messageId, fullText);
-      }, typingSpeed);
+      }, delay);
       
       return prev.map(msg => 
         msg.id === messageId 
@@ -306,6 +355,17 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
           : msg
       );
     });
+  };
+
+  // Function to safely start typing animation
+  const safelyStartTyping = (messageId: string, text: string) => {
+    // Clear existing timer first
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+    }
+    
+    // Start new typing animation
+    typeMessage(messageId, text);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -321,6 +381,7 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
         content: 'Please log in to use the chat feature.',
         role: 'assistant',
         timestamp: new Date(),
+        isNew: true,
       };
       setMessages(prev => [...prev, errorMessage]);
       return;
@@ -331,31 +392,15 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
       content: inputValue,
       role: 'user',
       timestamp: new Date(),
+      isNew: true,
     };
     
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
     
-    // Wait for a moment before showing the thinking indicator
+    // Remove all "Thinking" indicator code - we'll just wait for the actual response
     let responseStarted = false;
-    const loadingTimeout = setTimeout(() => {
-      // If no response has started yet, create a placeholder
-      if (!responseStarted) {
-        // Create a loading message immediately - we'll replace it later
-        const loadingMessageId = Date.now().toString() + '_loading';
-        setMessages(prev => [
-          ...prev,
-          {
-            id: loadingMessageId,
-            content: 'Thinking',
-            role: 'assistant',
-            timestamp: new Date(),
-            isStreaming: true,
-          }
-        ]);
-      }
-    }, 500);
 
     try {
       // Create placeholder message for streaming response
@@ -368,100 +413,82 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
         (chunk) => {
           // Response has started
           responseStarted = true;
-          clearTimeout(loadingTimeout);
           
-          // Check if we need to replace loading message or add a new message
+          // Only add the assistant message once we get the first chunk of response
           setMessages(prev => {
-            // Find if there's a loading message to replace
-            const loadingMsgIndex = prev.findIndex(m => 
-              m.role === 'assistant' && 
-              m.content === 'Thinking' && 
-              m.isStreaming
-            );
-            
-            // Create a fresh array to work with
-            let updatedMessages = [...prev];
-            
-            // If there's a loading message, replace it with our streaming message
-            if (loadingMsgIndex >= 0) {
-              const newMessages = [...prev];
-              newMessages[loadingMsgIndex] = {
+            // If we already have a streaming message, just update it
+            if (prev.find(m => m.id === streamingMessageId)) {
+              return prev.map(msg => {
+                if (msg.id === streamingMessageId) {
+                  let newFullContent = '';
+                  
+                  try {
+                    // Try to parse as JSON
+                    const jsonData = JSON.parse(chunk);
+                    // Server returns 'message' field, not 'response'
+                    newFullContent = jsonData.message || '';
+                    
+                    // If this chunk contains a conversationId, save it
+                    if (jsonData.conversationId && !conversationId) {
+                      setConversationId(jsonData.conversationId);
+                    }
+                  } catch (e) {
+                    // Just append if not valid JSON
+                    newFullContent = (msg.fullContent || '') + chunk;
+                  }
+                  
+                  return {
+                    ...msg,
+                    fullContent: newFullContent,
+                    isNew: true,
+                  };
+                }
+                return msg;
+              });
+            } else {
+              // Add a new streaming message on first chunk
+              let initialContent = '';
+              
+              try {
+                // Try to parse the first chunk as JSON
+                const jsonData = JSON.parse(chunk);
+                initialContent = jsonData.message || '';
+              } catch (e) {
+                // Just use the chunk as is
+                initialContent = chunk;
+              }
+              
+              const newMessage: Message = {
                 id: streamingMessageId,
-                content: '',
-                fullContent: '',
+                content: '', // Start with empty content that will be "typed out"
+                fullContent: initialContent, // Set the initial full content
                 role: 'assistant',
                 timestamp: new Date(),
                 isStreaming: true,
+                isNew: true,
               };
-              updatedMessages = newMessages;
-            } else if (!prev.find(m => m.id === streamingMessageId)) {
-              // If streaming message doesn't exist yet, add it
-              updatedMessages = [
-                ...prev,
-                {
-                  id: streamingMessageId,
-                  content: '',
-                  fullContent: '',
-                  role: 'assistant',
-                  timestamp: new Date(),
-                  isStreaming: true,
-                }
-              ];
+              return [...prev, newMessage];
             }
-            
-            // Now process the chunk for the streaming message
-            return updatedMessages.map(msg => {
-              if (msg.id === streamingMessageId) {
-                let newFullContent = '';
-                
-                try {
-                  // Try to parse as JSON
-                  const jsonData = JSON.parse(chunk);
-                  // Server returns 'message' field, not 'response'
-                  newFullContent = jsonData.message || '';
-                  
-                  // If this chunk contains a conversationId, save it
-                  if (jsonData.conversationId && !conversationId) {
-                    console.log('Setting conversationId from chunk:', jsonData.conversationId);
-                    setConversationId(jsonData.conversationId);
-                  }
-                } catch (e) {
-                  // Just append if not valid JSON
-                  newFullContent = (msg.fullContent || '') + chunk;
-                }
-                
-                return {
-                  ...msg,
-                  fullContent: newFullContent,
-                };
-              }
-              return msg;
-            });
           });
           
-          // Start the typing animation
-          setMessages(prev => {
-            const streamingMsg = prev.find(m => m.id === streamingMessageId);
-            if (streamingMsg && streamingMsg.fullContent !== streamingMsg.content) {
-              // Clear previous timer
-              if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+          // Start the typing animation after a small delay
+          setTimeout(() => {
+            setMessages(prev => {
+              const streamingMsg = prev.find(m => m.id === streamingMessageId);
               
-              // Start typing animation for this updated content
-              typingTimerRef.current = setTimeout(() => {
-                typeMessage(streamingMessageId, streamingMsg.fullContent || '');
-              }, typingSpeed);
-            }
-            return prev;
-          });
+              if (streamingMsg && streamingMsg.fullContent !== streamingMsg.content) {
+                safelyStartTyping(streamingMessageId, streamingMsg.fullContent || '');
+              }
+              return prev;
+            });
+          }, 100); // Small delay to ensure state is updated
         }
       ).then((data) => {
         // Response completed
-        clearTimeout(loadingTimeout);
         responseStarted = true;
         
         // Set conversation ID if it's a new conversation
         if (!conversationId && data.conversationId) {
-          console.log('Setting conversationId from response:', data.conversationId);
           setConversationId(data.conversationId);
         }
         
@@ -471,17 +498,22 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
           
           if (!hasStreamingMsg) {
             // If no streaming message was created yet, add the complete message
-            return [
-              ...prev.filter(m => !(m.role === 'assistant' && m.content === 'Thinking' && m.isStreaming)),
-              {
-                id: streamingMessageId,
-                content: data.message || '',
-                fullContent: data.message || '',
-                role: 'assistant',
-                timestamp: new Date(),
-                isStreaming: false,
-              }
-            ];
+            const newMessage: Message = {
+              id: streamingMessageId,
+              content: '', // Start with empty content to trigger typing animation
+              fullContent: data.message || '',
+              role: 'assistant',
+              timestamp: new Date(),
+              isStreaming: true,
+              isNew: true,
+            };
+            
+            // Schedule the typing animation to start
+            setTimeout(() => {
+              safelyStartTyping(streamingMessageId, data.message || '');
+            }, 100);
+            
+            return [...prev, newMessage];
           }
           
           // Ensure the typing animation completes with the final content
@@ -490,83 +522,56 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
               return {
                 ...msg,
                 fullContent: data.message || msg.fullContent || '',
+                isStreaming: true, // Ensure it's still streaming to continue typing
+                isNew: true,
               };
             }
             return msg;
           });
           
-          const streamingMsg = updatedMessages.find(m => m.id === streamingMessageId);
-          if (streamingMsg && streamingMsg.fullContent !== streamingMsg.content) {
-            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-            
-            typingTimerRef.current = setTimeout(() => {
-              typeMessage(streamingMessageId, streamingMsg.fullContent || '');
-            }, typingSpeed);
-          }
+          // Start the final typing animation with a small delay
+          setTimeout(() => {
+            const streamingMsg = updatedMessages.find(m => m.id === streamingMessageId);
+            if (streamingMsg && streamingMsg.fullContent !== streamingMsg.content) {
+              safelyStartTyping(streamingMessageId, streamingMsg.fullContent || '');
+            }
+          }, 100);
           
           return updatedMessages;
         });
       });
     } catch (error) {
       console.error('Error sending message:', error);
-      clearTimeout(loadingTimeout);
       
-      // Update the streaming message to show the error or create new error message
+      // Show error message
       const errorMessage = 'Sorry, something went wrong. Please try again.';
       
-      setMessages(prev => {
-        // Check if there's already a streaming message or loading message
-        const loadingMsgIndex = prev.findIndex(m => 
-          m.role === 'assistant' && 
-          m.content === 'Thinking' && 
-          m.isStreaming
-        );
-        
-        if (loadingMsgIndex >= 0) {
-          // Replace loading message with error
-          const newMessages = [...prev];
-          newMessages[loadingMsgIndex] = {
-            id: Date.now().toString() + '_error',
-            content: errorMessage,
-            role: 'assistant',
-            timestamp: new Date(),
-            isStreaming: false,
-          };
-          return newMessages;
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now().toString() + '_error',
+          content: errorMessage,
+          role: 'assistant',
+          timestamp: new Date(),
+          isStreaming: false,
+          isNew: true,
         }
-        
-        // Check for streaming message
-        const streamingMsg = prev.find(m => m.isStreaming && m.role === 'assistant');
-        if (streamingMsg) {
-          return prev.map(msg => {
-            if (msg.isStreaming && msg.role === 'assistant') {
-              return {
-                ...msg,
-                content: errorMessage,
-                fullContent: errorMessage,
-                isStreaming: false,
-              };
-            }
-            return msg;
-          });
-        }
-        
-        // No existing message to update, add new error message
-        return [
-          ...prev,
-          {
-            id: Date.now().toString() + '_error',
-            content: errorMessage,
-            role: 'assistant',
-            timestamp: new Date(),
-            isStreaming: false,
-          }
-        ];
-      });
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Remove isNew flag after animation completes
+  useEffect(() => {
+    const animationTimeout = setTimeout(() => {
+      setMessages(prevMessages => 
+        prevMessages.map(msg => msg.isNew ? { ...msg, isNew: false } : msg)
+      );
+    }, 1000); // Match this with the animation duration
+
+    return () => clearTimeout(animationTimeout);
+  }, [messages]);
 
   return (
     <div className="bg-white rounded-lg shadow-lg flex flex-col h-[90vh] max-h-[90vh] w-full overflow-hidden">
@@ -575,7 +580,7 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
         className="bg-blue-700 text-white p-3 flex justify-between items-center cursor-pointer"
         onClick={onClose}
       >
-        <h3 className="font-semibold text-lg">PantryPal Assistant</h3>
+        <h3 className="font-semibold text-lg">Pantrio</h3>
         <button 
           onClick={(e) => {
             e.stopPropagation(); // Prevent triggering parent onClick
@@ -596,72 +601,117 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
               key={message.id} 
               className={`mb-3 ${
                 message.role === 'user'
-                ? 'ml-auto bg-blue-100 text-gray-800 border border-blue-200' 
-                : 'mr-auto bg-gray-200 text-gray-800 border border-gray-300' 
-              } p-3 rounded-lg max-w-[85%] shadow-sm`}
+                ? 'ml-auto bg-blue-100 text-gray-800 border border-blue-200 relative' 
+                : 'mr-auto bg-gray-200 text-gray-800 border border-gray-300 relative' 
+              } p-3 rounded-lg max-w-[85%] shadow-sm ${
+                message.isNew ? 'animate-fadeIn' : ''
+              }`}
             >
-              {message.content === 'Thinking' ? (
-                <div className="flex items-center text-gray-600 italic">
-                  <span>{message.content}</span>
-                  <span className="inline-block animate-dot1">.</span>
-                  <span className="inline-block animate-dot2">.</span>
-                  <span className="inline-block animate-dot3">.</span>
-                </div>
+              {message.role === 'assistant' && (
+                <div className="absolute left-[-6px] bottom-[3px] w-3 h-3 bg-gray-200 border-l border-b border-gray-300 transform rotate-45 skew-y-[10deg]"></div>
+              )}
+              {message.role === 'user' && (
+                <div className="absolute right-[-6px] bottom-[3px] w-3 h-3 bg-blue-100 border-r border-b border-blue-200 transform rotate-[-45deg] skew-y-[10deg]"></div>
+              )}
+              {message.role === 'assistant' && typeof message.content === 'string' ? (
+                <>
+                  {formatSpecialContent(message.content)}
+                  {message.isStreaming && (
+                    <span className="inline-block w-1.5 h-4 ml-1 bg-gray-700 animate-typing"></span>
+                  )}
+                </>
               ) : (
                 <>
-                  {message.role === 'assistant' && typeof message.content === 'string' ? (
-                    <>
-                      {formatSpecialContent(message.content)}
-                      {message.isStreaming && (
-                        <span className="inline-block w-1.5 h-4 ml-1 bg-gray-700 animate-typing"></span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {message.content}
-                      {message.isStreaming && (
-                        <span className="inline-block w-1.5 h-4 ml-1 bg-gray-700 animate-typing"></span>
-                      )}
-                    </>
+                  {message.content}
+                  {message.isStreaming && (
+                    <span className="inline-block w-1.5 h-4 ml-1 bg-gray-700 animate-typing"></span>
                   )}
                 </>
               )}
             </div>
           ))}
-          {isLoading && !messages.find(m => m.isStreaming) && (
-            <div className="mr-auto bg-gray-200 text-gray-800 border border-gray-300 p-3 rounded-lg max-w-[85%] shadow-sm">
-              <div className="flex items-center text-gray-600 italic">
-                <span>Thinking</span>
-                <span className="inline-block animate-dot1">.</span>
-                <span className="inline-block animate-dot2">.</span>
-                <span className="inline-block animate-dot3">.</span>
-              </div>
-            </div>
-          )}
           <div ref={messagesEndRef} />
         </div>
       </div>
       
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="border-t border-gray-200 p-3 flex items-center bg-white">
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Type your message..."
-          className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 bg-white caret-blue-600"
-          disabled={isLoading}
-        />
-        <button
-          type="submit"
-          className="ml-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          disabled={!inputValue.trim() || isLoading}
-          aria-label="Send message"
-        >
-          <FaPaperPlane size={16} />
-        </button>
+      <form onSubmit={handleSubmit} className="border-t border-gray-200 p-3 flex flex-col bg-white">
+        {/* Thinking indicator - show only when loading and no response started yet */}
+        {isLoading && !messages.some(m => m.isStreaming) && (
+          <div className="text-gray-600 text-xs mb-2 w-full py-2 px-3 bg-gray-200 rounded flex items-center justify-start shadow-sm">
+            <span className="italic">Pantrio is thinking</span>
+            <span className="inline-block animate-dot1 mx-[1px]">.</span>
+            <span className="inline-block animate-dot2 mx-[1px]">.</span>
+            <span className="inline-block animate-dot3 mx-[1px]">.</span>
+          </div>
+        )}
+        <div className="flex items-center">
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Type your message..."
+            className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 bg-white caret-blue-600"
+            disabled={isLoading}
+          />
+          <button
+            type="submit"
+            className="ml-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            disabled={!inputValue.trim() || isLoading}
+            aria-label="Send message"
+          >
+            <FaPaperPlane size={16} />
+          </button>
+        </div>
       </form>
     </div>
   );
+}
+
+// Add this CSS at the bottom of the file
+const styles = `
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes typing {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-typing {
+  animation: typing 1s infinite;
+}
+
+@keyframes dot1 {
+  0%, 100% { opacity: 0; }
+  25%, 50% { opacity: 1; }
+}
+
+@keyframes dot2 {
+  0%, 25%, 100% { opacity: 0; }
+  50%, 75% { opacity: 1; }
+}
+
+@keyframes dot3 {
+  0%, 50%, 100% { opacity: 0; }
+  75%, 95% { opacity: 1; }
+}
+
+.animate-dot1 { animation: dot1 1.3s infinite; }
+.animate-dot2 { animation: dot2 1.3s infinite; }
+.animate-dot3 { animation: dot3 1.3s infinite; }
+`;
+
+// Add the styles to the document
+if (typeof document !== 'undefined') {
+  const styleElement = document.createElement('style');
+  styleElement.innerHTML = styles;
+  document.head.appendChild(styleElement);
 } 
