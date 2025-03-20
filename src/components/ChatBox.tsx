@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { FaTimes, FaPaperPlane } from 'react-icons/fa';
-import { sendMessage } from '../util/chatService';
+import { sendMessageAction } from '../app/actions/chatActions';
+import { setupTokenSync } from '../util/tokenSync';
 
 interface Message {
   id: string;
@@ -270,6 +271,9 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
       inputRef.current.focus();
     }
     
+    // Set up token synchronization for server actions
+    setupTokenSync();
+    
     // Clean up any typing timers when component unmounts
     return () => {
       if (typingTimerRef.current) {
@@ -373,20 +377,20 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
     
     if (!inputValue.trim() || isLoading) return;
     
-    // Check if user is authenticated - only check for token
-    const hasAuth = localStorage.getItem('jwtToken');
-    if (!hasAuth) {
-      const errorMessage: Message = {
-        id: Date.now().toString() + '1',
-        content: 'Please log in to use the chat feature.',
-        role: 'assistant',
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+      // User is not authenticated
+      const authErrorMessage: Message = {
+        id: Date.now().toString() + '_auth_required',
+        content: 'You need to log in to use the chat feature.',
+        role: 'assistant' as const,
         timestamp: new Date(),
         isNew: true,
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, authErrorMessage]);
       return;
     }
-    
+
     const userMessage: Message = {
       id: Date.now().toString(),
       content: inputValue,
@@ -406,152 +410,141 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
       // Create placeholder message for streaming response
       const streamingMessageId = Date.now().toString() + '1';
       
-      // Use the onChunk callback to accumulate the full response
-      await sendMessage(
-        userMessage.content, 
-        conversationId || undefined, 
-        (chunk) => {
-          // Response has started
+      // Call the server action instead of the chatService
+      const result = await sendMessageAction(userMessage.content, conversationId || undefined);
+      
+      // Check for errors
+      if (result.error) {
+        // Handle authentication errors
+        if (result.status === 401 || result.status === 403) {
+          // Clear local token as it may be invalid or expired
+          localStorage.removeItem('jwtToken');
+          
+          const errorMessage: Message = {
+            id: Date.now().toString() + '_auth_error',
+            content: result.error,
+            role: 'assistant' as const,
+            timestamp: new Date(),
+            isNew: true,
+          };
+          setMessages(prev => [...prev, errorMessage]);
+          return;
+        }
+        
+        // Handle timeout specifically
+        if (result.isTimeout) {
+          throw new Error(`Request timed out: ${result.error}`);
+        }
+        throw new Error(result.error);
+      }
+      
+      // If we have chunks, process them
+      if (result.chunks && result.chunks.length > 0) {
+        // Add a new streaming message on first chunk
+        const newMessage: Message = {
+          id: streamingMessageId,
+          content: '', // Start with empty content that will be "typed out"
+          fullContent: '', // This will hold the entire message
+          role: 'assistant',
+          timestamp: new Date(),
+          isStreaming: true,
+          isNew: true,
+        };
+        
+        setMessages(prev => [...prev, newMessage]);
+        
+        // Process all chunks
+        let responseText = '';
+        
+        // Process all chunks we received from the server action
+        for (const chunk of result.chunks) {
           responseStarted = true;
           
-          // Only add the assistant message once we get the first chunk of response
-          setMessages(prev => {
-            // If we already have a streaming message, just update it
-            if (prev.find(m => m.id === streamingMessageId)) {
-              return prev.map(msg => {
-                if (msg.id === streamingMessageId) {
-                  let newFullContent = '';
-                  
-                  try {
-                    // Try to parse as JSON
-                    const jsonData = JSON.parse(chunk);
-                    // Server returns 'message' field, not 'response'
-                    newFullContent = jsonData.message || '';
-                    
-                    // If this chunk contains a conversationId, save it
-                    if (jsonData.conversationId && !conversationId) {
-                      setConversationId(jsonData.conversationId);
-                    }
-                  } catch (e) {
-                    // Just append if not valid JSON
-                    newFullContent = (msg.fullContent || '') + chunk;
-                  }
-                  
-                  return {
-                    ...msg,
-                    fullContent: newFullContent,
-                    isNew: true,
-                  };
-                }
-                return msg;
-              });
-            } else {
-              // Add a new streaming message on first chunk
-              let initialContent = '';
+          // Try to parse JSON if needed
+          if (chunk.text.startsWith('data: ')) {
+            try {
+              const jsonString = chunk.text.substring(6).trim();
+              const jsonData = JSON.parse(jsonString);
+              responseText = jsonData.message || '';
               
-              try {
-                // Try to parse the first chunk as JSON
-                const jsonData = JSON.parse(chunk);
-                initialContent = jsonData.message || '';
-              } catch (e) {
-                // Just use the chunk as is
-                initialContent = chunk;
+              // If this chunk contains a conversationId, save it
+              if (jsonData.conversationId && !conversationId) {
+                setConversationId(jsonData.conversationId);
               }
-              
-              const newMessage: Message = {
-                id: streamingMessageId,
-                content: '', // Start with empty content that will be "typed out"
-                fullContent: initialContent, // Set the initial full content
-                role: 'assistant',
-                timestamp: new Date(),
-                isStreaming: true,
-                isNew: true,
-              };
-              return [...prev, newMessage];
+            } catch (e) {
+              // If parsing fails, just append the raw chunk
+              responseText += chunk.text;
             }
-          });
-          
-          // Start the typing animation after a small delay
-          setTimeout(() => {
-            setMessages(prev => {
-              const streamingMsg = prev.find(m => m.id === streamingMessageId);
-              
-              if (streamingMsg && streamingMsg.fullContent !== streamingMsg.content) {
-                safelyStartTyping(streamingMessageId, streamingMsg.fullContent || '');
-              }
-              return prev;
-            });
-          }, 100); // Small delay to ensure state is updated
-        }
-      ).then((data) => {
-        // Response completed
-        responseStarted = true;
-        
-        // Set conversation ID if it's a new conversation
-        if (!conversationId && data.conversationId) {
-          setConversationId(data.conversationId);
-        }
-        
-        // Handle the case where no streaming started yet (very fast response)
-        setMessages(prev => {
-          const hasStreamingMsg = prev.find(m => m.id === streamingMessageId);
-          
-          if (!hasStreamingMsg) {
-            // If no streaming message was created yet, add the complete message
-            const newMessage: Message = {
-              id: streamingMessageId,
-              content: '', // Start with empty content to trigger typing animation
-              fullContent: data.message || '',
-              role: 'assistant',
-              timestamp: new Date(),
-              isStreaming: true,
-              isNew: true,
-            };
-            
-            // Schedule the typing animation to start
-            setTimeout(() => {
-              safelyStartTyping(streamingMessageId, data.message || '');
-            }, 100);
-            
-            return [...prev, newMessage];
+          } else {
+            // Regular chunk handling
+            responseText += chunk.text;
           }
           
-          // Ensure the typing animation completes with the final content
-          const updatedMessages = prev.map(msg => {
-            if (msg.id === streamingMessageId) {
-              return {
-                ...msg,
-                fullContent: data.message || msg.fullContent || '',
-                isStreaming: true, // Ensure it's still streaming to continue typing
-                isNew: true,
-              };
-            }
-            return msg;
+          // Update the message with the new content after processing each chunk
+          setMessages(prev => {
+            return prev.map(msg => {
+              if (msg.id === streamingMessageId) {
+                return {
+                  ...msg,
+                  fullContent: responseText,
+                  isNew: true,
+                }
+              }
+              return msg;
+            });
           });
-          
-          // Start the final typing animation with a small delay
-          setTimeout(() => {
-            const streamingMsg = updatedMessages.find(m => m.id === streamingMessageId);
+        }
+        
+        // Start the typing animation with the final text
+        setTimeout(() => {
+          setMessages(prev => {
+            const streamingMsg = prev.find(m => m.id === streamingMessageId);
             if (streamingMsg && streamingMsg.fullContent !== streamingMsg.content) {
               safelyStartTyping(streamingMessageId, streamingMsg.fullContent || '');
             }
-          }, 100);
-          
-          return updatedMessages;
-        });
-      });
+            return prev;
+          });
+        }, 100);
+        
+      } else {
+        // Handle case where we got a response but no chunks
+        const errorMessage = 'Received empty response from server';
+        throw new Error(errorMessage);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       
-      // Show error message
-      const errorMessage = 'Sorry, something went wrong. Please try again.';
+      // Try to extract error details if it's in JSON format (from our custom Response)
+      let errorMessage = 'Sorry, something went wrong. Please try again.';
+      let isTimeout = false;
+      
+      if (error instanceof Error) {
+        // Check if it's a timeout error
+        isTimeout = error.message.includes('timed out') || error.message.includes('timeout');
+        
+        if (isTimeout) {
+          errorMessage = 'The request timed out. Your message might be too complex or our servers are busy. Please try a shorter message or try again later.';
+        } else if (error.message.includes('Chat API error')) {
+          // If it's an API error, try to parse the response
+          try {
+            // Extract status code if available
+            const statusMatch = error.message.match(/(\d{3})/);
+            if (statusMatch && statusMatch[1] === '504') {
+              isTimeout = true;
+              errorMessage = 'The request timed out. Your message might be too complex or our servers are busy. Please try a shorter message or try again later.';
+            }
+          } catch (e) {
+            // Use default error message
+          }
+        }
+      }
       
       setMessages(prev => [
         ...prev,
         {
           id: Date.now().toString() + '_error',
           content: errorMessage,
-          role: 'assistant',
+          role: 'assistant' as const,
           timestamp: new Date(),
           isStreaming: false,
           isNew: true,

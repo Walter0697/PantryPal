@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import type { NextRequest } from 'next/server';
 import { jwtDecode } from 'jwt-decode';
 
@@ -59,17 +59,36 @@ function isTokenValid(token: string): boolean {
 }
 
 // This function can be marked `async` if using `await` inside
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
+  const response = NextResponse.next();
+  
+  // Only run on client-side pages
+  const url = request.nextUrl.pathname;
+  if (url.startsWith('/_next') || url.startsWith('/api')) {
+    return response;
+  }
+  
+  // Check for JWT in headers
+  const authHeader = request.headers.get('x-auth-token');
+  if (authHeader) {
+    // If a client is sending a custom auth header, use it to set the cookie
+    response.cookies.set('jwtToken', authHeader, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
+  }
+  
   // Get the pathname of the request
   const path = request.nextUrl.pathname;
-  const url = request.nextUrl.toString();
   
   console.log(`Middleware processing path: ${path}, full URL: ${url}`);
   
   // Skip token verification for public paths
   if (isPublicPath(path)) {
     console.log(`Public path detected: ${path}, allowing access`);
-    return NextResponse.next();
+    return response;
   }
   
   // CRITICAL: Read token from both cookie and localStorage
