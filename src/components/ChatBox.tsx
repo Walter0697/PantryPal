@@ -13,6 +13,7 @@ interface Message {
   isStreaming?: boolean;
   fullContent?: string; // Store the full content while typing
   isNew?: boolean; // Flag to identify new messages for animation
+  title?: string; // Message title
 }
 
 // Add a helper function to parse and format special content
@@ -254,12 +255,15 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
       content: 'Hey there! 👋 I\'m Pantrio, your fun kitchen buddy! Ready to make your pantry sparkle? Let me help you get organized!\n\n你好！👋 我是 Pantrio，你的廚房助手。我可以幫助你整理廚房和食物儲存。',
       role: 'assistant',
       timestamp: new Date(),
+      title: 'Your Kitchen Assistant'
     },
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [baseTypingSpeed, setBaseTypingSpeed] = useState(180); // Increased from 120 to 180ms for even slower typing
+  const [conversationTitle, setConversationTitle] = useState<string>('Your Kitchen Assistant');
+  const [isTitleNew, setIsTitleNew] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -455,6 +459,7 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
         
         // Process all chunks
         let responseText = '';
+        let messageTitle = '';
         
         // Process all chunks we received from the server action
         for (const chunk of result.chunks) {
@@ -466,6 +471,16 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
               const jsonString = chunk.text.substring(6).trim();
               const jsonData = JSON.parse(jsonString);
               responseText = jsonData.message || '';
+              
+              // Store the title if it exists
+              if (jsonData.title && !messageTitle) {
+                messageTitle = jsonData.title;
+                // Update the conversation title
+                if (conversationTitle !== jsonData.title) {
+                  setConversationTitle(jsonData.title);
+                  setIsTitleNew(true);
+                }
+              }
               
               // If this chunk contains a conversationId, save it
               if (jsonData.conversationId && !conversationId) {
@@ -488,6 +503,7 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
                   ...msg,
                   fullContent: responseText,
                   isNew: true,
+                  title: messageTitle || undefined
                 }
               }
               return msg;
@@ -566,6 +582,17 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
     return () => clearTimeout(animationTimeout);
   }, [messages]);
 
+  // Remove isTitleNew flag after animation completes
+  useEffect(() => {
+    if (isTitleNew) {
+      const animationTimeout = setTimeout(() => {
+        setIsTitleNew(false);
+      }, 1000); // Match this with the animation duration
+
+      return () => clearTimeout(animationTimeout);
+    }
+  }, [isTitleNew]);
+
   return (
     <div className="bg-white rounded-lg shadow-lg flex flex-col h-[90vh] max-h-[90vh] w-full overflow-hidden">
       {/* Header - Make entire header clickable */}
@@ -585,6 +612,20 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
           <FaTimes />
         </button>
       </div>
+      
+      {/* Conversation Title */}
+      {conversationTitle && (
+        <div className={`px-4 py-2 bg-gray-100 border-b border-gray-200 text-gray-700 font-medium ${isTitleNew ? 'animate-title-change' : ''}`}>
+          <div className="flex items-center">
+            <span className="text-blue-600 mr-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+              </svg>
+            </span>
+            <span className="truncate">{conversationTitle}</span>
+          </div>
+        </div>
+      )}
       
       {/* Messages Container - Make this scrollable */}
       <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
@@ -680,6 +721,16 @@ const styles = `
 
 .animate-typing {
   animation: typing 1s infinite;
+}
+
+@keyframes titleChange {
+  0% { background-color: rgba(96, 165, 250, 0.2); }
+  50% { background-color: rgba(96, 165, 250, 0.4); }
+  100% { background-color: rgba(243, 244, 246, 1); }
+}
+
+.animate-title-change {
+  animation: titleChange 1s ease-out;
 }
 
 @keyframes dot1 {

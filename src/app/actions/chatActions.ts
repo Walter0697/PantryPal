@@ -12,6 +12,7 @@ interface StreamChunk {
   text: string;
   conversationId?: string;
   done?: boolean;
+  title?: string;
 }
 
 // Base URL for the API - adjust based on environment
@@ -115,7 +116,8 @@ export async function sendMessageAction(
           chunks.push({
             text: chunk,
             conversationId: jsonData.conversationId,
-            done: jsonData.done
+            done: jsonData.done,
+            title: jsonData.title
           });
         } catch (e) {
           // If parsing fails, just append the raw chunk
