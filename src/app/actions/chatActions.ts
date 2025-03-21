@@ -171,4 +171,106 @@ export async function getConversationAction(conversationId: string): Promise<any
     console.error('Error fetching conversation:', error);
     throw error;
   }
+}
+
+// Add API functions to fetch conversations and chat history
+
+/**
+ * Fetch the list of conversations for the current user
+ */
+export async function getConversationsAction(): Promise<{ error?: string; conversations?: any[]; status?: number }> {
+  try {
+    // Get the auth token from cookies
+    const authToken = cookies().get('jwtToken')?.value;
+    
+    // Check if user is authenticated
+    if (!authToken) {
+      return {
+        error: 'Authentication required. Please log in to view conversations.',
+        status: 401
+      };
+    }
+    
+    // Fetch conversations list
+    const response = await fetchWithTimeout(`${API_BASE_URL}/conversations`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      },
+    }, 10000); // 10 second timeout
+    
+    // Handle unauthorized responses
+    if (response.status === 401 || response.status === 403) {
+      return {
+        error: 'Your session has expired or you are not authorized. Please log in again.',
+        status: response.status
+      };
+    }
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Check if data is an array directly or has a conversations property
+    const conversationsArray = Array.isArray(data) ? data : (data.conversations || []);
+    
+    return { conversations: conversationsArray };
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    return { 
+      error: error instanceof Error ? error.message : 'Failed to fetch conversations', 
+    };
+  }
+}
+
+/**
+ * Fetch the chat history for a specific conversation
+ */
+export async function getChatHistoryAction(conversationId: string): Promise<{ error?: string; messages?: any[]; status?: number }> {
+  try {
+    // Get the auth token from cookies
+    const authToken = cookies().get('jwtToken')?.value;
+    
+    // Check if user is authenticated
+    if (!authToken) {
+      return {
+        error: 'Authentication required. Please log in to view chat history.',
+        status: 401
+      };
+    }
+    
+    // Fetch conversation history
+    const response = await fetchWithTimeout(`${API_BASE_URL}/conversation/${conversationId}/history`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      },
+    }, 10000); // 10 second timeout
+    
+    // Handle unauthorized responses
+    if (response.status === 401 || response.status === 403) {
+      return {
+        error: 'Your session has expired or you are not authorized. Please log in again.',
+        status: response.status
+      };
+    }
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Check if data is an array directly or has a messages property
+    const messagesArray = Array.isArray(data) ? data : (data.messages || []);
+    
+    return { messages: messagesArray };
+  } catch (error) {
+    console.error('Error fetching chat history:', error);
+    return { 
+      error: error instanceof Error ? error.message : 'Failed to fetch chat history', 
+    };
+  }
 } 

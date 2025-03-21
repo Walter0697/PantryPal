@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { FaTimes, FaPaperPlane } from 'react-icons/fa';
-import { sendMessageAction } from '../app/actions/chatActions';
+import { FaTimes, FaPaperPlane, FaCaretDown, FaHistory } from 'react-icons/fa';
+import { sendMessageAction, getConversationsAction, getChatHistoryAction } from '../app/actions/chatActions';
 import { setupTokenSync } from '../util/tokenSync';
 
 interface Message {
@@ -15,6 +15,35 @@ interface Message {
   isNew?: boolean; // Flag to identify new messages for animation
   title?: string; // Message title
 }
+
+interface Conversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount?: number;
+}
+
+// Add a helper function to format dates
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  
+  // Less than 24 hours ago
+  if (diff < 24 * 60 * 60 * 1000) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  
+  // Less than 7 days ago
+  if (diff < 7 * 24 * 60 * 60 * 1000) {
+    const options: Intl.DateTimeFormatOptions = { weekday: 'short' };
+    return date.toLocaleDateString([], options);
+  }
+  
+  // Older
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
 
 // Add a helper function to parse and format special content
 const formatSpecialContent = (content: string): React.ReactNode => {
@@ -264,10 +293,134 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
   const [baseTypingSpeed, setBaseTypingSpeed] = useState(180); // Increased from 120 to 180ms for even slower typing
   const [conversationTitle, setConversationTitle] = useState<string>('Your Kitchen Assistant');
   const [isTitleNew, setIsTitleNew] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [isConversationMenuOpen, setIsConversationMenuOpen] = useState(false);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const conversationMenuRef = useRef<HTMLDivElement>(null);
+
+  // Function to fetch conversations
+  const fetchConversations = async () => {
+    setIsLoadingConversations(true);
+    try {
+      const result = await getConversationsAction();
+      if (result.error) {
+        console.error('Failed to fetch conversations:', result.error);
+      } else if (result.conversations) {
+        // Make sure each conversation has at least a default title
+        const formattedConversations = result.conversations.map((conv: any) => ({
+          ...conv,
+          title: conv.title || `Conversation ${conv.id.substr(0, 8)}`
+        }));
+        
+        // Filter out duplicates and current conversation
+        const uniqueConversations: Conversation[] = [];
+        const conversationIds = new Set<string>();
+        
+        formattedConversations.forEach((conv: Conversation) => {
+          // Skip current conversation and duplicates
+          if (!conversationIds.has(conv.id) && conv.id !== conversationId) {
+            conversationIds.add(conv.id);
+            uniqueConversations.push(conv);
+          }
+        });
+        
+        // Sort by updated date, most recent first
+        uniqueConversations.sort((a, b) => {
+          const dateA = new Date(a.updatedAt || a.createdAt);
+          const dateB = new Date(b.updatedAt || b.createdAt);
+          return dateB.getTime() - dateA.getTime();
+        });
+        
+        setConversations(uniqueConversations);
+      }
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+    } finally {
+      setIsLoadingConversations(false);
+    }
+  };
+
+  // Update title with animation trigger
+  const updateTitle = (newTitle: string) => {
+    setConversationTitle(newTitle);
+    setIsTitleNew(true);
+  };
+
+  // Function to load chat history
+  const loadChatHistory = async (conversationId: string, conversationTitle?: string) => {
+    try {
+      setIsLoading(true);
+      const result = await getChatHistoryAction(conversationId);
+      
+      if (result.error) {
+        console.error('Failed to fetch chat history:', result.error);
+        return;
+      }
+      
+      // Update the conversation ID first
+      setConversationId(conversationId);
+      
+      // Update title right away if provided - don't wait for messages to load
+      if (conversationTitle) {
+        updateTitle(conversationTitle);
+      }
+      
+      if (result.messages && result.messages.length > 0) {
+        // Format messages from the API to match our Message interface
+        const formattedMessages: Message[] = result.messages.map((msg: any) => ({
+          id: msg.id || Date.now().toString() + Math.random().toString(),
+          content: msg.content || '',
+          role: msg.role as 'user' | 'assistant',
+          timestamp: new Date(msg.timestamp || Date.now()),
+          title: msg.title
+        }));
+        
+        // Update conversation title if not already set and available in the first assistant message
+        if (!conversationTitle) {
+          const assistantMsg = formattedMessages.find(m => m.role === 'assistant' && m.title);
+          if (assistantMsg?.title) {
+            updateTitle(assistantMsg.title);
+          }
+        }
+        
+        // Update messages
+        setMessages(formattedMessages);
+        
+        // Refresh conversations list to reflect the new current conversation
+        fetchConversations();
+      } else {
+        // If no messages, set empty array
+        setMessages([]);
+        
+        // Refresh conversations list to reflect the new current conversation
+        fetchConversations();
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to clear the chat and start a new conversation
+  const startNewConversation = () => {
+    setMessages([{
+      id: '1',
+      content: 'Hey there! 👋 I\'m Pantrio, your fun kitchen buddy! Ready to make your pantry sparkle? Let me help you get organized!\n\n你好！👋 我是 Pantrio，你的廚房助手。我可以幫助你整理廚房和食物儲存。',
+      role: 'assistant',
+      timestamp: new Date(),
+      title: 'Your Kitchen Assistant'
+    }]);
+    setConversationId(null);
+    updateTitle('Your Kitchen Assistant');
+    
+    // Refresh conversations list
+    fetchConversations();
+  };
 
   useEffect(() => {
     // Focus the input when chat opens
@@ -277,6 +430,9 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
     
     // Set up token synchronization for server actions
     setupTokenSync();
+    
+    // Fetch conversations when component mounts
+    fetchConversations();
     
     // Clean up any typing timers when component unmounts
     return () => {
@@ -444,6 +600,7 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
       
       // If we have chunks, process them
       if (result.chunks && result.chunks.length > 0) {
+        
         // Add a new streaming message on first chunk
         const newMessage: Message = {
           id: streamingMessageId,
@@ -477,14 +634,15 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
                 messageTitle = jsonData.title;
                 // Update the conversation title
                 if (conversationTitle !== jsonData.title) {
-                  setConversationTitle(jsonData.title);
-                  setIsTitleNew(true);
+                  updateTitle(jsonData.title);
                 }
               }
               
               // If this chunk contains a conversationId, save it
               if (jsonData.conversationId && !conversationId) {
                 setConversationId(jsonData.conversationId);
+                // Refresh conversations list when we get a new conversation ID
+                fetchConversations();
               }
             } catch (e) {
               // If parsing fails, just append the raw chunk
@@ -593,6 +751,24 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
     }
   }, [isTitleNew]);
 
+  // Handle clicks outside conversation menu
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        conversationMenuRef.current && 
+        !conversationMenuRef.current.contains(event.target as Node) &&
+        isConversationMenuOpen
+      ) {
+        setIsConversationMenuOpen(false);
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isConversationMenuOpen]);
+
   return (
     <div className="bg-white rounded-lg shadow-lg flex flex-col h-[90vh] max-h-[90vh] w-full overflow-hidden">
       {/* Header - Make entire header clickable */}
@@ -616,13 +792,114 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
       {/* Conversation Title */}
       {conversationTitle && (
         <div className={`px-4 py-2 bg-gray-100 border-b border-gray-200 text-gray-700 font-medium ${isTitleNew ? 'animate-title-change' : ''}`}>
-          <div className="flex items-center">
-            <span className="text-blue-600 mr-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-              </svg>
-            </span>
-            <span className="truncate">{conversationTitle}</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center truncate">
+              <span className="text-blue-600 mr-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                </svg>
+              </span>
+              <span className="truncate">{conversationTitle}</span>
+            </div>
+            
+            {/* Conversation Menu Button */}
+            <div className="relative flex items-center">
+              <button 
+                className="mr-2 p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-600"
+                onClick={startNewConversation}
+                title="New conversation"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </button>
+              
+              <button 
+                className="ml-1 p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsConversationMenuOpen(!isConversationMenuOpen);
+                  // Fetch latest conversations when opening menu
+                  if (!isConversationMenuOpen) {
+                    fetchConversations();
+                  }
+                }}
+                title="Conversation history"
+              >
+                <FaHistory className="h-4 w-4" />
+              </button>
+              
+              {/* Conversation Menu Dropdown */}
+              {isConversationMenuOpen && (
+                <div 
+                  ref={conversationMenuRef}
+                  className="absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg z-50 overflow-hidden border border-gray-200"
+                  style={{ top: '100%' }}
+                >
+                  <div className="py-2">
+                    <div className="px-4 py-2 font-bold text-sm text-gray-700 border-b border-gray-200 flex justify-between items-center">
+                      <span>Recent Conversations</span>
+                      <button 
+                        className="text-blue-500 hover:text-blue-700 focus:outline-none p-1 rounded-full hover:bg-blue-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fetchConversations();
+                        }}
+                        disabled={isLoadingConversations}
+                        title="Refresh conversations"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${isLoadingConversations ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
+                    </div>
+                    
+                    {isLoadingConversations ? (
+                      <div className="px-4 py-3 text-sm text-gray-500 italic">Loading conversations...</div>
+                    ) : conversations.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-gray-500">No recent conversations found.</div>
+                    ) : (
+                      <div className="max-h-64 overflow-y-auto">
+                        {conversations.map(conv => (
+                          <button
+                            key={conv.id}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 focus:outline-none focus:bg-blue-50 truncate flex items-center justify-between"
+                            onClick={() => {
+                              loadChatHistory(conv.id, conv.title || `Conversation ${conv.id.substr(0, 8)}`);
+                              setIsConversationMenuOpen(false);
+                            }}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="truncate font-medium">{conv.title || "Conversation " + conv.id.substr(0, 8)}</div>
+                              <div className="text-xs text-gray-500 truncate">
+                                {formatDate(conv.updatedAt || conv.createdAt)}
+                                {conv.messageCount && (
+                                  <span className="ml-2 bg-gray-200 text-gray-700 rounded-full px-2 py-0.5">
+                                    {conv.messageCount}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="border-t border-gray-200 mt-2 pt-2">
+                      <button 
+                        className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 focus:outline-none focus:bg-blue-50 flex items-center"
+                        onClick={() => {
+                          startNewConversation();
+                          setIsConversationMenuOpen(false);
+                        }}
+                      >
+                        <span className="text-blue-600 mr-1">+</span> Start New Conversation
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
