@@ -44,13 +44,23 @@ const setCookie = (name: string, value: string, maxAge: number) => {
   // Build the cookie string with all essential attributes
   // SameSite=Lax is important for modern browsers
   // Using maxAge instead of expires for better compatibility
-  const cookieValue = `${name}=${value}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  const cookieValue = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax`;
   
   // Set the cookie
   document.cookie = cookieValue;
   
-  // Verify the cookie was set
-  return document.cookie.includes(`${name}=`);
+  // Also try setting with expires date for better compatibility
+  try {
+    const expirationDate = new Date();
+    expirationDate.setTime(expirationDate.getTime() + (maxAge * 1000));
+    
+    const altCookieValue = `${name}=${encodeURIComponent(value)}; path=/; expires=${expirationDate.toUTCString()}; SameSite=Lax`;
+    document.cookie = altCookieValue;
+  } catch (e) {
+    // Silent catch - first method is the primary one
+  }
+  
+  return true;
 };
 
 // Provider component that wraps the app and makes auth object available to any child component that calls useAuth()
@@ -64,27 +74,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   // Logout function - clear both localStorage and cookie
   const logout = useCallback(() => {
-    console.log('Logging out user...');
-    
     try {
       // Clear localStorage
       localStorage.removeItem('jwtToken');
       localStorage.removeItem('emailVerified');
-      console.log('Cleared localStorage token and verification status');
+      localStorage.removeItem('username');
       
-      // Clear cookie by setting it to expire immediately
+      // Clear JWT cookie
       document.cookie = 'jwtToken=; path=/; max-age=0; SameSite=Lax';
       
-      // Double check the cookie was cleared
-      const cookieStillExists = document.cookie.includes('jwtToken=');
-      if (cookieStillExists) {
-        console.warn('First cookie clearing attempt failed, trying alternative approach');
-        // Try several alternative methods to ensure the cookie is cleared
+      // Clear username cookie
+      document.cookie = 'username=; path=/; max-age=0; SameSite=Lax';
+      
+      // Double check the cookies were cleared
+      const jwtCookieStillExists = document.cookie.includes('jwtToken=');
+      const usernameCookieStillExists = document.cookie.includes('username=');
+      
+      if (jwtCookieStillExists || usernameCookieStillExists) {
+        // Try several alternative methods to ensure the cookies are cleared
         document.cookie = 'jwtToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
         document.cookie = 'jwtToken=; path=/; max-age=-1';
+        document.cookie = 'username=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = 'username=; path=/; max-age=-1';
       }
-      
-      console.log('Cleared authentication cookie');
       
       // Update state
       setToken(null);
@@ -93,12 +105,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Redirect to login page if not already there
       if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-        console.log('Redirecting to login page after logout');
         window.location.href = '/';
       }
     } catch (error) {
-      console.error('Error during logout:', error);
-      
       // Even if there's an error, attempt to update state and redirect
       setToken(null);
       setIsLoggedIn(false);
@@ -125,7 +134,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // For now, we'll just setup a timer to logout when it expires
     if (remainingTime <= TOKEN_REFRESH_THRESHOLD) {
       // In a real app, this is where you'd call your refresh token API
-      console.log(`Token will expire in ${remainingTime} seconds`);
     }
 
     // Set timer to check token expiration
@@ -141,14 +149,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   // Update email verification status
   const updateEmailVerificationStatus = useCallback((verified: boolean) => {
-    console.log('Updating email verification status:', verified);
     setEmailVerified(verified);
     
     // Optional: store this status in localStorage for persistence
     try {
       localStorage.setItem('emailVerified', String(verified));
     } catch (error) {
-      console.error('Error storing email verification status:', error);
+      // Silently handle errors
     }
   }, []);
   
@@ -165,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setEmailVerified(storedEmailVerified === 'true');
         }
       } catch (e) {
-        console.error('Error reading email verification status:', e);
+        // Silent catch - email verification is optional
       }
       
       if (storedToken && isTokenValid(storedToken)) {
@@ -175,7 +182,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Setup token refresh/expiration handling
         const cleanup = setupTokenRefresh(storedToken);
-        console.log('AuthProvider: Initialized with valid token');
         
         setIsInitialized(true);
         return cleanup;
@@ -184,9 +190,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           localStorage.removeItem('jwtToken');
         } catch (e) {
-          console.error('LocalStorage access error:', e);
+          // Silent catch
         }
-        console.log('AuthProvider: Removed invalid token');
         
         setIsInitialized(true);
         
@@ -196,7 +201,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         // No token at all
-        console.log('AuthProvider: No token found');
         setIsInitialized(true);
         
         // Only redirect if not already on login page and not an API route
@@ -205,7 +209,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error) {
-      console.error('Error initializing auth state:', error);
       setIsInitialized(true);
       
       // Safety redirect on error
@@ -217,49 +220,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   // Login function - now accepts token and expiration
   const login = useCallback((newToken: string, expiresIn: number) => {
-    console.log('AuthProvider: Setting up login with token');
-    
     try {
+      // Extract username from token
+      try {
+        const tokenData = JSON.parse(atob(newToken.split('.')[1]));
+        const username = tokenData['cognito:username'] || tokenData.username || tokenData.preferred_username;
+        
+        // Store username in localStorage and cookies for accessibility
+        if (username) {
+          // Save to localStorage
+          localStorage.setItem('username', username);
+          
+          // Save to cookies so backend can access it
+          const maxAgeSeconds = Math.min(expiresIn, 60 * 60 * 24 * 7); // Same expiry as JWT
+          setCookie('username', username, maxAgeSeconds);
+        }
+      } catch (tokenDecodeError) {
+        // Silent catch - no username in cookies is acceptable
+      }
+      
       // Store token in localStorage with error handling
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem('jwtToken', newToken);
-        console.log('Token successfully stored in localStorage');
         
         // CRITICAL FIX: Set cookie that middleware can access
         try {
-          // Ensure the cookie doesn't exceed reasonable size limits
-          if (newToken.length > 4000) {
-            console.warn('Token is very large (>4KB), which may cause issues with cookies');
-          }
-          
           // Use a more reliable cookie setting approach with max age in seconds
           // Cap at 7 days for safety even if token has longer expiration
           const maxAgeSeconds = Math.min(expiresIn, 60 * 60 * 24 * 7);
           
-          // Try to set cookie with our helper function
-          const cookieSet = setCookie('jwtToken', newToken, maxAgeSeconds);
-          
-          if (!cookieSet) {
-            console.warn('Primary cookie setting failed, trying with a shorter token');
-            
-            // If the full token fails, we can try with just the first part 
-            // (this is better than no cookie at all, but will fail validation)
-            const shortToken = newToken.substring(0, 2000);
-            const emergencyCookieSet = setCookie('jwtToken', shortToken, maxAgeSeconds);
-            
-            if (!emergencyCookieSet) {
-              console.error('All cookie setting attempts failed - middleware authentication will not work');
-            } else {
-              console.log('Emergency cookie set with truncated token - validation may fail');
-            }
-          } else {
-            console.log('Cookie set successfully');
-          }
+          // Try to set cookie with our improved helper function
+          setCookie('jwtToken', newToken, maxAgeSeconds);
         } catch (cookieError) {
-          console.error('Error setting cookie:', cookieError);
+          // Silent catch - localStorage is the backup
         }
-      } else {
-        console.error('localStorage not available');
       }
       
       // Update state
@@ -268,38 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Setup token refresh/expiration handling
       setupTokenRefresh(newToken);
-      
-      // Validate token right after storing - with retry logic
-      const validateTokenStorage = () => {
-        try {
-          const storedToken = localStorage.getItem('jwtToken');
-          const hasCookie = document.cookie.includes('jwtToken=');
-          
-          if (!storedToken || storedToken !== newToken) {
-            console.error('Token validation after login failed - stored token does not match provided token');
-          } else if (!hasCookie) {
-            console.error('Token cookie not set properly - middleware will not be able to access token');
-            
-            // Try to fix the cookie one more time
-            try {
-              setCookie('jwtToken', newToken, 86400);
-              console.log('Attempted emergency cookie fix');
-            } catch (e) {
-              console.error('Emergency cookie fix failed:', e);
-            }
-          } else {
-            console.log('Token validated after login (localStorage and cookie)');
-          }
-        } catch (e) {
-          console.error('Error validating token after login:', e);
-        }
-      };
-      
-      // Check immediately and then again after a short delay
-      validateTokenStorage();
-      setTimeout(validateTokenStorage, 500);
     } catch (error) {
-      console.error('Error in login function:', error);
       // Still update the in-memory state even if localStorage fails
       setToken(newToken);
       setIsLoggedIn(true);

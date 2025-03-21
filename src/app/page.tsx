@@ -69,7 +69,6 @@ function LoginPageContent() {
         const currentTime = Math.floor(Date.now() / 1000);
         
         if (decoded.exp && decoded.exp > currentTime) {
-          console.log('Already logged in, redirecting to home');
           
           // Use router for redirection within app - don't use window.location
           // This keeps the application context and prevents state conflicts
@@ -89,8 +88,6 @@ function LoginPageContent() {
     try {
       setIsLoading(true);
       
-      console.log(`Login attempt started for user: ${username}`);
-      
       // Only attempt reCAPTCHA if not in fallback mode
       let recaptchaToken = null;
       
@@ -99,22 +96,17 @@ function LoginPageContent() {
         // Create a promise with timeout for reCAPTCHA
         const getRecaptchaToken = async (): Promise<string | null> => {
           try {
-            console.log('Executing reCAPTCHA verification...');
-            
             // Wait for reCAPTCHA to be fully ready
             if (!(window as any).__RECAPTCHA_READY) {
-              console.log('Waiting for reCAPTCHA to initialize...');
               // Wait up to 5 seconds for reCAPTCHA to be ready
               for (let i = 0; i < 10; i++) {
                 if ((window as any).__RECAPTCHA_READY) {
-                  console.log('reCAPTCHA is now ready');
                   break;
                 }
                 await new Promise(resolve => setTimeout(resolve, 500));
               }
               
               if (!(window as any).__RECAPTCHA_READY) {
-                console.error('reCAPTCHA failed to initialize within timeout period');
                 return null;
               }
             }
@@ -126,13 +118,10 @@ function LoginPageContent() {
                   !window.grecaptcha || 
                   typeof window.grecaptcha.ready !== 'function') {
                 
-                console.warn('reCAPTCHA not properly loaded, attempting to reload script...');
-                
                 // Try to reload the script
                 const existingScript = document.getElementById('recaptcha-script');
                 if (existingScript) {
                   existingScript.remove();
-                  console.log('Removed existing reCAPTCHA script');
                 }
                 
                 // Wait for a moment before checking again
@@ -142,11 +131,9 @@ function LoginPageContent() {
                 if (typeof window !== 'undefined' && 
                     window.grecaptcha && 
                     typeof window.grecaptcha.ready === 'function') {
-                  console.log('reCAPTCHA successfully reloaded');
                   return true;
                 }
                 
-                console.error('reCAPTCHA still not available after reload attempt');
                 return false;
               }
               
@@ -168,11 +155,9 @@ function LoginPageContent() {
             await new Promise<void>(resolve => {
               if (typeof window !== 'undefined' && window.grecaptcha) {
                 window.grecaptcha.ready(() => {
-                  console.log('reCAPTCHA is ready for execution');
                   resolve();
                 });
               } else {
-                console.log('grecaptcha not available, resolving anyway');
                 resolve();
               }
             });
@@ -182,7 +167,6 @@ function LoginPageContent() {
               new Promise(async (resolve) => {
                 try {
                   if (!executeRecaptcha) {
-                    console.error('executeRecaptcha function is not available');
                     resolve(null);
                     return;
                   }
@@ -192,14 +176,12 @@ function LoginPageContent() {
                   
                   // Explicitly check for empty or invalid tokens
                   if (!result || typeof result !== 'string' || result.trim() === '') {
-                    console.error('reCAPTCHA returned invalid token:', result);
                     resolve(null);
                     return;
                   }
                   
                   resolve(result);
                 } catch (err) {
-                  console.error('Inner executeRecaptcha error:', err);
                   resolve(null);
                 }
               }),
@@ -208,24 +190,17 @@ function LoginPageContent() {
             
             // Add additional validation for token format
             if (!token) {
-              console.error('reCAPTCHA returned empty token');
               return null;
             }
             
             // Check token length for basic validation
             if (token.length < 20) {
-              console.error(`reCAPTCHA token seems invalid (length: ${token.length})`);
               return null;
             }
             
-            console.log('reCAPTCHA token obtained successfully');
             return token;
           } catch (error) {
             // Catch any errors from the reCAPTCHA execution
-            console.error('reCAPTCHA execution error:', error);
-            if (String(error).includes('hpm')) {
-              console.log('Detected hpm error in reCAPTCHA execution, using fallback');
-            }
             return null;
           }
         };
@@ -236,7 +211,6 @@ function LoginPageContent() {
         
         while (!recaptchaToken && attempts < maxAttempts) {
           attempts++;
-          console.log(`reCAPTCHA attempt ${attempts}/${maxAttempts}`);
           recaptchaToken = await getRecaptchaToken();
           
           if (!recaptchaToken && attempts < maxAttempts) {
@@ -246,14 +220,12 @@ function LoginPageContent() {
         }
         
         if (!recaptchaToken) {
-          console.error('All reCAPTCHA attempts failed, switching to fallback mode');
           setRecaptchaFailed(true);
           // Use a fallback "token" that the server will recognize as fallback mode
           recaptchaToken = 'FALLBACK_MODE';
         }
       } else {
         // We're in fallback mode or reCAPTCHA is not available
-        console.log('Using reCAPTCHA fallback mode');
         recaptchaToken = 'FALLBACK_MODE';
       }
       
@@ -265,9 +237,7 @@ function LoginPageContent() {
         formData.append('recaptchaToken', recaptchaToken);
         
         // Call the server action
-        console.log('Calling authentication server action...');
         const result = await authenticate(formData);
-        console.log('Authentication result received:', { success: result.success, hasToken: !!result.token });
         
         if (result.success) {
           toast.success(result.message || 'Login successful!');
@@ -314,25 +284,18 @@ function LoginPageContent() {
           // Show the password change form instead of redirecting
           setShowPasswordChange(true);
           setSessionToken(result.session || '');
-          
-          // We already have the username from the login form
-          console.log('Password change required for user:', username);
-          console.log('Session token available:', !!result.session);
         }
         else {
           // Show error toast on failed login
           toast.error(result.message || 'Login failed');
-          console.log('Login failed:', result);
         }
       } catch (authError: any) {
         // Specific error for authentication issues
         toast.error(`Authentication error: ${authError.message || 'Please check your credentials'}`);
-        console.log('Authentication error:', authError);
       }
     } catch (error: any) {
       // Fallback error handler for any unexpected issues
       toast.error(`Login error: ${error.message || 'Please try again'}`);
-      console.log('Unexpected login error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -573,6 +536,7 @@ function LoginPageContent() {
                   placeholder="Enter your username"
                   className="w-full pl-10 pr-3 py-2 bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -592,6 +556,7 @@ function LoginPageContent() {
                 inputClassName="bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                 iconClassName="text-primary-400"
                 toggleClassName="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-primary-400 hover:text-secondary-500"
+                disabled={isLoading}
               />
             </div>
 
@@ -603,7 +568,7 @@ function LoginPageContent() {
                   isLoading ? 'opacity-70 cursor-not-allowed' : ''
                 }`}
               >
-                {isLoading ? 'Logging in...' : 'Login'}
+                {isLoading ? 'Signing in...' : 'Login'}
               </button>
               
               <button
@@ -667,6 +632,7 @@ function LoginPageContent() {
                 inputClassName="bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                 iconClassName="text-primary-400"
                 toggleClassName="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-primary-400 hover:text-secondary-500"
+                disabled={isLoading}
               />
             </div>
             
@@ -685,6 +651,7 @@ function LoginPageContent() {
                 inputClassName="bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                 iconClassName="text-primary-400"
                 toggleClassName="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-primary-400 hover:text-secondary-500"
+                disabled={isLoading}
               />
             </div>
             
@@ -734,6 +701,7 @@ function LoginPageContent() {
                   placeholder="Enter your username"
                   className="w-full pl-10 pr-3 py-2 bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                   required
+                  disabled={isLoading}
                 />
               </div>
               <div className="mt-2 text-xs text-gray-400">
@@ -788,6 +756,7 @@ function LoginPageContent() {
                   placeholder="Enter code from email"
                   className="w-full pl-10 pr-3 py-2 bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -807,6 +776,7 @@ function LoginPageContent() {
                 inputClassName="bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                 iconClassName="text-primary-400"
                 toggleClassName="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-primary-400 hover:text-secondary-500"
+                disabled={isLoading}
               />
             </div>
             
@@ -825,6 +795,7 @@ function LoginPageContent() {
                 inputClassName="bg-dark-blue border border-primary-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                 iconClassName="text-primary-400"
                 toggleClassName="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-primary-400 hover:text-secondary-500"
+                disabled={isLoading}
               />
             </div>
             
@@ -859,36 +830,22 @@ export default function LoginPage() {
   const [recaptchaError, setRecaptchaError] = useState<string | null>(null);
   const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '';
   
-  // Log configuration information for debugging
+  // Log critical configuration errors only (not debug logs)
   useEffect(() => {
     if (!siteKey) {
-      console.error('NEXT_PUBLIC_RECAPTCHA_SITE_KEY is not configured in environment variables');
       setRecaptchaError('reCAPTCHA site key missing - check .env file');
     } else if (siteKey === 'your-recaptcha-v3-site-key') {
-      console.error('NEXT_PUBLIC_RECAPTCHA_SITE_KEY is using the default placeholder value');
       setRecaptchaError('Using placeholder reCAPTCHA key - set actual key in .env');
-    } else {
-      console.log('reCAPTCHA configuration loaded with site key (first 5 chars):', siteKey.substring(0, 5) + '...');
     }
     
-    // Check if the site appears to be running on localhost
-    const isLocalhost = typeof window !== 'undefined' && 
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    
-    if (isLocalhost) {
-      console.log('Running on localhost - ensure localhost is added to reCAPTCHA domain list');
-    }
-    
-    // Debug Google's services availability
+    // Check if Google's reCAPTCHA services are reachable
     const checkGoogleServices = async () => {
       try {
-        const response = await fetch('https://www.google.com/recaptcha/api.js', { 
+        await fetch('https://www.google.com/recaptcha/api.js', { 
           method: 'HEAD',
-          mode: 'no-cors' // Just checking if it loads, not the content
+          mode: 'no-cors'
         });
-        console.log('reCAPTCHA script appears to be reachable');
       } catch (error) {
-        console.error('Unable to reach Google reCAPTCHA services:', error);
         setRecaptchaError('Cannot reach reCAPTCHA services - check network');
       }
     };
@@ -900,7 +857,6 @@ export default function LoginPage() {
     window.onerror = function(message, source, lineno, colno, error) {
       // Check if the error message contains 'hpm' which is a known issue with reCAPTCHA
       if (typeof message === 'string' && message.includes('hpm')) {
-        console.log('Suppressed reCAPTCHA internal error related to hpm property');
         return true; // Prevent the error from propagating
       }
       
@@ -919,15 +875,11 @@ export default function LoginPage() {
   
   // Then add this code to monitor script loading after the GoogleReCaptchaProvider initialization
   useEffect(() => {
-    // Monitor for script loading
+    // Check for script loading
     const scriptLoadingCheck = setInterval(() => {
       const recaptchaScript = document.getElementById('recaptcha-script');
-      if (recaptchaScript) {
-        console.log('reCAPTCHA script element found in DOM');
-        if (window.grecaptcha) {
-          console.log('reCAPTCHA script has loaded successfully');
-          clearInterval(scriptLoadingCheck);
-        }
+      if (recaptchaScript && window.grecaptcha) {
+        clearInterval(scriptLoadingCheck);
       }
     }, 1000);
 
@@ -936,12 +888,10 @@ export default function LoginPage() {
     };
   }, []);
   
-  // Add this to the LoginPage component
   // Define the global callback for reCAPTCHA loading
   useEffect(() => {
-    // Define a global function that will be called when reCAPTCHA is fully loaded
+    // Function called when reCAPTCHA is fully loaded
     (window as any).onRecaptchaLoaded = () => {
-      console.log('reCAPTCHA script loaded via onload callback');
       // Remove any error message related to reCAPTCHA loading
       if (recaptchaError && recaptchaError.includes('script failed to load')) {
         setRecaptchaError(null);
@@ -954,7 +904,7 @@ export default function LoginPage() {
     };
   }, [recaptchaError]);
   
-  // Add this to the top of the LoginPage component
+  // Initialize reCAPTCHA loading state
   useEffect(() => {
     // Set a global variable to know if reCAPTCHA script is loading
     (window as any).__RECAPTCHA_LOADING = true;
@@ -973,11 +923,9 @@ export default function LoginPage() {
       const checkInterval = setInterval(() => {
         attempts++;
         if (window.grecaptcha && typeof window.grecaptcha.ready === 'function') {
-          console.log('reCAPTCHA script verified as fully loaded');
           clearInterval(checkInterval);
           (window as any).__RECAPTCHA_READY = true;
         } else if (attempts >= maxAttempts) {
-          console.error('Failed to load reCAPTCHA after multiple attempts');
           clearInterval(checkInterval);
           setRecaptchaError('reCAPTCHA failed to initialize - please refresh the page');
         }

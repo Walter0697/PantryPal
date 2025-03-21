@@ -273,28 +273,30 @@ const formatSpecialContent = (content: string): React.ReactNode => {
   return parts.length > 0 ? <>{parts}</> : content;
 };
 
-interface ChatBoxProps {
-  onClose: () => void;
+interface Props {
+  onClose?: () => void;
+  initialConversationId?: string;
+  initialConversationTitle?: string;
+  isFullScreen?: boolean;
 }
 
-export default function ChatBox({ onClose }: ChatBoxProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: 'Hey there! 👋 I\'m Pantrio, your fun kitchen buddy! Ready to make your pantry sparkle? Let me help you get organized!\n\n你好！👋 我是 Pantrio，你的廚房助手。我可以幫助你整理廚房和食物儲存。',
-      role: 'assistant',
-      timestamp: new Date(),
-      title: 'Your Kitchen Assistant'
-    },
-  ]);
+export default function ChatBox({ onClose, initialConversationId, initialConversationTitle, isFullScreen = false }: Props) {
+  const [messages, setMessages] = useState<Message[]>([{
+    id: '1',
+    content: 'Hey there! 👋 I\'m Pantrio, your fun kitchen buddy! Ready to make your pantry sparkle? Let me help you get organized!\n\n你好！👋 我是 Pantrio，你的廚房助手。我可以幫助你整理廚房和食物儲存。',
+    role: 'assistant',
+    timestamp: new Date(),
+    title: 'Your Kitchen Assistant'
+  }]);
+  
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
   const [baseTypingSpeed, setBaseTypingSpeed] = useState(180); // Increased from 120 to 180ms for even slower typing
-  const [conversationTitle, setConversationTitle] = useState<string>('Your Kitchen Assistant');
+  const [conversationTitle, setConversationTitle] = useState<string>(initialConversationTitle || 'Your Kitchen Assistant');
   const [isTitleNew, setIsTitleNew] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isConversationMenuOpen, setIsConversationMenuOpen] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -354,6 +356,7 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
   const loadChatHistory = async (conversationId: string, conversationTitle?: string) => {
     try {
       setIsLoading(true);
+      
       const result = await getChatHistoryAction(conversationId);
       
       if (result.error) {
@@ -406,22 +409,6 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
     }
   };
 
-  // Function to clear the chat and start a new conversation
-  const startNewConversation = () => {
-    setMessages([{
-      id: '1',
-      content: 'Hey there! 👋 I\'m Pantrio, your fun kitchen buddy! Ready to make your pantry sparkle? Let me help you get organized!\n\n你好！👋 我是 Pantrio，你的廚房助手。我可以幫助你整理廚房和食物儲存。',
-      role: 'assistant',
-      timestamp: new Date(),
-      title: 'Your Kitchen Assistant'
-    }]);
-    setConversationId(null);
-    updateTitle('Your Kitchen Assistant');
-    
-    // Refresh conversations list
-    fetchConversations();
-  };
-
   useEffect(() => {
     // Focus the input when chat opens
     if (inputRef.current) {
@@ -431,7 +418,7 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
     // Set up token synchronization for server actions
     setupTokenSync();
     
-    // Fetch conversations when component mounts
+    // Fetch username
     fetchConversations();
     
     // Clean up any typing timers when component unmounts
@@ -537,20 +524,6 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
     
     if (!inputValue.trim() || isLoading) return;
     
-    const token = localStorage.getItem('jwtToken');
-    if (!token) {
-      // User is not authenticated
-      const authErrorMessage: Message = {
-        id: Date.now().toString() + '_auth_required',
-        content: 'You need to log in to use the chat feature.',
-        role: 'assistant' as const,
-        timestamp: new Date(),
-        isNew: true,
-      };
-      setMessages(prev => [...prev, authErrorMessage]);
-      return;
-    }
-
     const userMessage: Message = {
       id: Date.now().toString(),
       content: inputValue,
@@ -571,7 +544,10 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
       const streamingMessageId = Date.now().toString() + '1';
       
       // Call the server action instead of the chatService
-      const result = await sendMessageAction(userMessage.content, conversationId || undefined);
+      const result = await sendMessageAction(
+        userMessage.content, 
+        conversationId || undefined
+      );
       
       // Check for errors
       if (result.error) {
@@ -774,13 +750,13 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
       {/* Header - Make entire header clickable */}
       <div 
         className="bg-blue-700 text-white p-3 flex justify-between items-center cursor-pointer"
-        onClick={onClose}
+        onClick={onClose ? onClose : undefined}
       >
         <h3 className="font-semibold text-lg">Pantrio</h3>
         <button 
           onClick={(e) => {
             e.stopPropagation(); // Prevent triggering parent onClick
-            onClose();
+            if (onClose) onClose();
           }}
           className="text-white hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-white rounded p-1"
           aria-label="Close chat"
@@ -806,7 +782,19 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
             <div className="relative flex items-center">
               <button 
                 className="mr-2 p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-600"
-                onClick={startNewConversation}
+                onClick={() => {
+                  setConversationId(null);
+                  updateTitle('Your Kitchen Assistant');
+                  // Clear the messages array and set the default welcome message
+                  setMessages([{
+                    id: '1',
+                    content: 'Hey there! 👋 I\'m Pantrio, your fun kitchen buddy! Ready to make your pantry sparkle? Let me help you get organized!\n\n你好！👋 我是 Pantrio，你的廚房助手。我可以幫助你整理廚房和食物儲存。',
+                    role: 'assistant',
+                    timestamp: new Date(),
+                    title: 'Your Kitchen Assistant'
+                  }]);
+                  fetchConversations();
+                }}
                 title="New conversation"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -888,8 +876,11 @@ export default function ChatBox({ onClose }: ChatBoxProps) {
                     <div className="border-t border-gray-200 mt-2 pt-2">
                       <button 
                         className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 focus:outline-none focus:bg-blue-50 flex items-center"
-                        onClick={() => {
-                          startNewConversation();
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConversationId(null);
+                          updateTitle('Your Kitchen Assistant');
+                          fetchConversations();
                           setIsConversationMenuOpen(false);
                         }}
                       >

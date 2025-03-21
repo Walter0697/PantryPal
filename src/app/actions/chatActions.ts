@@ -50,10 +50,11 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeout: numb
  */
 export async function sendMessageAction(
   message: string, 
-  conversationId?: string
+  conversationId?: string,
+  // username parameter is no longer used - we extract it from cookies
 ): Promise<{ error?: string; isTimeout?: boolean; chunks?: StreamChunk[]; status?: number }> {
   try {
-    // Get the auth token from cookies instead of localStorage
+    // Get the auth token from cookies
     const authToken = cookies().get('jwtToken')?.value;
     
     // Check if user is authenticated
@@ -62,6 +63,32 @@ export async function sendMessageAction(
         error: 'Authentication required. Please log in to use the chat feature.',
         status: 401
       };
+    }
+    
+    // Get username from cookies (set by AuthProvider)
+    let username = cookies().get('username')?.value || 'default';
+    
+    // If username is undefined, try to get it from token
+    if (!username || username === 'default') {
+      try {
+        // Parse the JWT token
+        const tokenParts = authToken.split('.');
+        if (tokenParts.length === 3) {
+          const tokenPayload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+          
+          // Try to extract username from different fields
+          const extractedUsername = tokenPayload['cognito:username'] || 
+                                   tokenPayload.username ||
+                                   tokenPayload.preferred_username ||
+                                   tokenPayload.sub; // fallback to user ID
+          
+          if (extractedUsername) {
+            username = extractedUsername;
+          }
+        }
+      } catch (error) {
+        // Silent error - fall back to default username
+      }
     }
     
     // Make API request with a longer timeout (50 seconds)
@@ -74,7 +101,7 @@ export async function sendMessageAction(
       body: JSON.stringify({
         message,
         conversationId,
-        userId: 'default', // Provide a default userId since it's not important
+        username, // Use the username from cookies
       }),
     }, 50000); // 50 second timeout
     
@@ -133,8 +160,6 @@ export async function sendMessageAction(
     
     return { chunks };
   } catch (error) {
-    console.error('Error in chat server action:', error);
-    
     // Create a more descriptive error response
     const errorMessage = error instanceof Error ? error.message : String(error);
     const isTimeout = errorMessage.includes('timed out');
@@ -154,6 +179,9 @@ export async function getConversationAction(conversationId: string): Promise<any
     // Get the auth token from cookies
     const authToken = cookies().get('jwtToken')?.value;
     
+    // Get username from cookies (set by AuthProvider) 
+    const username = cookies().get('username')?.value;
+    
     const response = await fetchWithTimeout(`${API_BASE_URL}/conversation/${conversationId}`, {
       method: 'GET',
       headers: {
@@ -168,7 +196,6 @@ export async function getConversationAction(conversationId: string): Promise<any
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('Error fetching conversation:', error);
     throw error;
   }
 }
@@ -191,8 +218,17 @@ export async function getConversationsAction(): Promise<{ error?: string; conver
       };
     }
     
+    // Get username from cookies (set by AuthProvider)
+    const username = cookies().get('username')?.value;
+    
     // Fetch conversations list
-    const response = await fetchWithTimeout(`${API_BASE_URL}/conversations`, {
+    let url = `${API_BASE_URL}/conversations`;
+    // Add username as query parameter if available
+    if (username) {
+      url += `?username=${encodeURIComponent(username)}`;
+    }
+    
+    const response = await fetchWithTimeout(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${authToken}`
@@ -218,7 +254,6 @@ export async function getConversationsAction(): Promise<{ error?: string; conver
     
     return { conversations: conversationsArray };
   } catch (error) {
-    console.error('Error fetching conversations:', error);
     return { 
       error: error instanceof Error ? error.message : 'Failed to fetch conversations', 
     };
@@ -241,8 +276,17 @@ export async function getChatHistoryAction(conversationId: string): Promise<{ er
       };
     }
     
+    // Get username from cookies (set by AuthProvider)
+    const username = cookies().get('username')?.value;
+    
     // Fetch conversation history
-    const response = await fetchWithTimeout(`${API_BASE_URL}/conversation/${conversationId}/history`, {
+    let url = `${API_BASE_URL}/conversation/${conversationId}/history`;
+    // Add username as query parameter if available
+    if (username) {
+      url += `?username=${encodeURIComponent(username)}`;
+    }
+    
+    const response = await fetchWithTimeout(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${authToken}`
@@ -268,9 +312,8 @@ export async function getChatHistoryAction(conversationId: string): Promise<{ er
     
     return { messages: messagesArray };
   } catch (error) {
-    console.error('Error fetching chat history:', error);
     return { 
       error: error instanceof Error ? error.message : 'Failed to fetch chat history', 
     };
   }
-} 
+}
