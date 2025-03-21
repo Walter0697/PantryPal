@@ -5,6 +5,23 @@ import { FaTimes, FaPaperPlane, FaCaretDown, FaHistory } from 'react-icons/fa';
 import { sendMessageAction, getConversationsAction, getChatHistoryAction } from '../app/actions/chatActions';
 import { setupTokenSync } from '../util/tokenSync';
 
+// Default conversation title
+const DEFAULT_CHAT_TITLE = 'Your Kitchen Assistant';
+
+// Welcome message variants
+const WELCOME_MESSAGES = [
+  'Hey there! 👋 I\'m Pantrio, your fun kitchen buddy! Ready to make your pantry sparkle? Let me help you get organized!\n\n你好！👋 我是 Pantrio，你的廚房助手。我可以幫助你整理廚房和食物儲存。',
+  'Welcome to Pantrio! 🍽️ I\'m here to help with all things kitchen-related. Need recipe ideas, pantry organization tips, or meal planning? Just ask!\n\n歡迎使用 Pantrio！🍽️ 我在這裡幫助您處理所有與廚房相關的事情。需要食譜創意、儲藏室整理技巧或餐點計劃？儘管問！',
+  'Hi there! 🥗 I\'m your Pantrio assistant. I can help you organize your ingredients, find recipes, and make the most of your kitchen. What can I help with today?\n\n嗨！🥗 我是您的 Pantrio 助手。我可以幫助您整理食材、尋找食譜，並充分利用您的廚房。今天我能幫您做什麼？',
+  'Greetings! 🧁 I\'m Pantrio, your kitchen management assistant. From organizing your pantry to suggesting recipes based on what you have - I\'m here to help. What would you like to do today?\n\n您好！🧁 我是 Pantrio，您的廚房管理助手。無論是整理儲藏室還是根據您現有的食材建議食譜 - 我都能幫忙。今天您想做什麼？'
+];
+
+// Helper function to get a random welcome message
+const getRandomWelcomeMessage = (): string => {
+  const randomIndex = Math.floor(Math.random() * WELCOME_MESSAGES.length);
+  return WELCOME_MESSAGES[randomIndex];
+};
+
 interface Message {
   id: string;
   content: string;
@@ -283,21 +300,22 @@ interface Props {
 export default function ChatBox({ onClose, initialConversationId, initialConversationTitle, isFullScreen = false }: Props) {
   const [messages, setMessages] = useState<Message[]>([{
     id: '1',
-    content: 'Hey there! 👋 I\'m Pantrio, your fun kitchen buddy! Ready to make your pantry sparkle? Let me help you get organized!\n\n你好！👋 我是 Pantrio，你的廚房助手。我可以幫助你整理廚房和食物儲存。',
+    content: getRandomWelcomeMessage(),
     role: 'assistant',
     timestamp: new Date(),
-    title: 'Your Kitchen Assistant'
+    title: DEFAULT_CHAT_TITLE
   }]);
   
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
   const [baseTypingSpeed, setBaseTypingSpeed] = useState(180); // Increased from 120 to 180ms for even slower typing
-  const [conversationTitle, setConversationTitle] = useState<string>(initialConversationTitle || 'Your Kitchen Assistant');
+  const [conversationTitle, setConversationTitle] = useState<string>(initialConversationTitle || DEFAULT_CHAT_TITLE);
   const [isTitleNew, setIsTitleNew] = useState(false);
   const [isConversationMenuOpen, setIsConversationMenuOpen] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [hasConversationStarted, setHasConversationStarted] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -395,18 +413,40 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
         
         // Refresh conversations list to reflect the new current conversation
         fetchConversations();
+        
+        // Set hasConversationStarted to false when messages are loaded
+        setHasConversationStarted(false);
       } else {
         // If no messages, set empty array
         setMessages([]);
         
         // Refresh conversations list to reflect the new current conversation
         fetchConversations();
+        
+        // Set hasConversationStarted to true when no messages
+        setHasConversationStarted(true);
       }
     } catch (error) {
       console.error('Error loading chat history:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Add a function to reset the conversation
+  const resetConversation = () => {
+    setConversationId(null);
+    updateTitle(DEFAULT_CHAT_TITLE);
+    // Clear the messages array and set the default welcome message
+    setMessages([{
+      id: '1',
+      content: getRandomWelcomeMessage(),
+      role: 'assistant',
+      timestamp: new Date(),
+      title: DEFAULT_CHAT_TITLE
+    }]);
+    fetchConversations();
+    setHasConversationStarted(true);
   };
 
   useEffect(() => {
@@ -523,6 +563,9 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
     e.preventDefault();
     
     if (!inputValue.trim() || isLoading) return;
+    
+    // Mark that the conversation has started
+    setHasConversationStarted(true);
     
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -702,6 +745,8 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       ]);
     } finally {
       setIsLoading(false);
+      // Set hasConversationStarted to false after message exchange is complete
+      setHasConversationStarted(false);
     }
   };
 
@@ -781,21 +826,14 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
             {/* Conversation Menu Button */}
             <div className="relative flex items-center">
               <button 
-                className="mr-2 p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-600"
+                className={`mr-2 p-1 rounded-full ${hasConversationStarted ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'hover:bg-gray-200 text-gray-600'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                 onClick={() => {
-                  setConversationId(null);
-                  updateTitle('Your Kitchen Assistant');
-                  // Clear the messages array and set the default welcome message
-                  setMessages([{
-                    id: '1',
-                    content: 'Hey there! 👋 I\'m Pantrio, your fun kitchen buddy! Ready to make your pantry sparkle? Let me help you get organized!\n\n你好！👋 我是 Pantrio，你的廚房助手。我可以幫助你整理廚房和食物儲存。',
-                    role: 'assistant',
-                    timestamp: new Date(),
-                    title: 'Your Kitchen Assistant'
-                  }]);
-                  fetchConversations();
+                  if (!hasConversationStarted) {
+                    resetConversation();
+                  }
                 }}
-                title="New conversation"
+                disabled={hasConversationStarted}
+                title={hasConversationStarted ? "Cannot start new conversation while in active conversation" : "New conversation"}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -875,16 +913,18 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
                     
                     <div className="border-t border-gray-200 mt-2 pt-2">
                       <button 
-                        className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 focus:outline-none focus:bg-blue-50 flex items-center"
+                        className={`w-full text-left px-4 py-2 text-sm ${hasConversationStarted ? 'text-gray-400 bg-gray-50 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'} focus:outline-none focus:bg-blue-50 flex items-center`}
                         onClick={(e) => {
-                          e.stopPropagation();
-                          setConversationId(null);
-                          updateTitle('Your Kitchen Assistant');
-                          fetchConversations();
-                          setIsConversationMenuOpen(false);
+                          if (!hasConversationStarted) {
+                            e.stopPropagation();
+                            resetConversation();
+                            setIsConversationMenuOpen(false);
+                          }
                         }}
+                        disabled={hasConversationStarted}
+                        title={hasConversationStarted ? "Cannot start new conversation while in active conversation" : "Start a new conversation"}
                       >
-                        <span className="text-blue-600 mr-1">+</span> Start New Conversation
+                        <span className={hasConversationStarted ? "text-gray-400" : "text-blue-600 mr-1"}>+</span> Start New Conversation
                       </button>
                     </div>
                   </div>
