@@ -1,55 +1,25 @@
 /**
  * Chat Configuration
  * 
- * This file configures which chat implementation to use:
- * 
- * 1. API_GATEWAY: Uses API Gateway with AWS Signature V4 (server-side)
- * 2. DIRECT_LAMBDA: Calls Lambda functions directly (server-side)
- * 3. CLIENT_API: Client-side API calls (least secure, only for testing)
+ * This file configures the direct Lambda invocation.
+ * For local development, the Lambda client will use serverless-offline.
+ * For production, it will use actual AWS Lambda functions.
  */
 
 export enum ChatImplementation {
-  API_GATEWAY = 'API_GATEWAY',
-  DIRECT_LAMBDA = 'DIRECT_LAMBDA',
-  CLIENT_API = 'CLIENT_API'
+  DIRECT_LAMBDA = 'DIRECT_LAMBDA'
 }
 
 /**
- * AWS Lambda function configuration
- * Update these to match your actual Lambda function names
- */
-export const lambdaConfig = {
-  chatFunction: 'pantrypal-chat-function',
-  conversationFunction: 'pantrypal-conversation-function', 
-  conversationsFunction: 'pantrypal-conversations-function',
-  historyFunction: 'pantrypal-history-function'
-};
-
-/**
  * Chat implementation to use
- * Change this to select which implementation to use
+ * Only direct Lambda invocation is supported now
  */
 export const CHAT_IMPLEMENTATION: ChatImplementation = ChatImplementation.DIRECT_LAMBDA;
 
 /**
- * Gets the appropriate chat service based on the selected implementation
+ * Gets the Lambda chat service
  */
 export function getChatService() {
-  switch (CHAT_IMPLEMENTATION) {
-    case ChatImplementation.API_GATEWAY:
-      // Use the server actions with AWS Signature V4
-      return import('../util/secureChat');
-      
-    case ChatImplementation.DIRECT_LAMBDA:
-      // Use the direct Lambda invocation (server-side)
-      return import('../util/lambdaChat');
-      
-    case ChatImplementation.CLIENT_API:
-      // Use the original client-side chat service (least secure)
-      return import('../util/chatService');
-      
-    default:
-      // Default to direct Lambda - most secure option
-      return import('../util/lambdaChat');
-  }
+  // Always use direct Lambda invocation
+  return import('../util/lambdaChat');
 } 

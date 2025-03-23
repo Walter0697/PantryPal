@@ -18,16 +18,69 @@ interface StreamChunk {
 }
 
 // Lambda function names - dynamically set based on environment
-const STAGE = process.env.NODE_ENV === 'production' ? 'production' : 'dev';
+const STAGE = process.env.APP_ENV === 'production' ? 'production' : 'dev';
 const BASE_NAME = 'pantrypal-chatbot-application';
 
-const CHAT_LAMBDA = `${BASE_NAME}-${STAGE}-handleMessage`;
-const CONVERSATION_LAMBDA = `${BASE_NAME}-${STAGE}-getConversation`;
-const CONVERSATIONS_LAMBDA = `${BASE_NAME}-${STAGE}-listConversations`;
-const HISTORY_LAMBDA = `${BASE_NAME}-${STAGE}-getChatHistory`;
+// Lambda function configurations by environment
+const getProdLambdaConfig = () => ({
+  CHAT_LAMBDA: `${BASE_NAME}-${STAGE}-handleMessage`,
+  CONVERSATION_LAMBDA: `${BASE_NAME}-${STAGE}-getConversation`,
+  CONVERSATIONS_LAMBDA: `${BASE_NAME}-${STAGE}-listConversations`,
+  HISTORY_LAMBDA: `${BASE_NAME}-${STAGE}-getChatHistory`
+});
 
-// Log which environment we're using
-console.log(`Using ${STAGE} environment for Lambda functions`);
+const getDevLambdaConfig = () => ({
+  CHAT_LAMBDA: 'post - /dev/chat',
+  CONVERSATION_LAMBDA: 'get - /dev/conversation/{id}',
+  CONVERSATIONS_LAMBDA: 'get - /dev/conversations',
+  HISTORY_LAMBDA: 'get - /dev/conversation/{id}/history'
+});
+
+/**
+ * Gets the appropriate Lambda function names or API paths based on environment
+ */
+export async function getRouteConfig() {
+  // For local development
+  if (process.env.APP_ENV !== 'production') {
+    console.log('Using development API endpoints');
+    return getDevLambdaConfig();
+  }
+  
+  // For production
+  console.log('Using production Lambda functions');
+  return getProdLambdaConfig();
+}
+
+// Production routes (default)
+const prodConfig = getProdLambdaConfig();
+
+// Start with production defaults
+let CHAT_LAMBDA = prodConfig.CHAT_LAMBDA;
+let CONVERSATION_LAMBDA = prodConfig.CONVERSATION_LAMBDA;
+let CONVERSATIONS_LAMBDA = prodConfig.CONVERSATIONS_LAMBDA;
+let HISTORY_LAMBDA = prodConfig.HISTORY_LAMBDA;
+
+// Initialize route config function that will be called at the start of each server action
+async function initRouteConfig() {
+  // Only initialize once
+  if (!routesInitialized) {
+    const config = await getRouteConfig();
+    CHAT_LAMBDA = config.CHAT_LAMBDA;
+    CONVERSATION_LAMBDA = config.CONVERSATION_LAMBDA;
+    CONVERSATIONS_LAMBDA = config.CONVERSATIONS_LAMBDA;
+    HISTORY_LAMBDA = config.HISTORY_LAMBDA;
+    
+    // Log which environment we're using
+    console.log(`Using ${STAGE} environment for Lambda functions or routes:`, { 
+      CHAT_LAMBDA, CONVERSATION_LAMBDA, CONVERSATIONS_LAMBDA, HISTORY_LAMBDA 
+    });
+    
+    routesInitialized = true;
+  }
+}
+
+// Track if routes have been initialized
+let routesInitialized = false;
 
 /**
  * Send a message to chat using direct Lambda invocation
@@ -38,6 +91,9 @@ export async function sendMessageLambda(
   conversationId?: string,
 ): Promise<{ error?: string; isTimeout?: boolean; chunks?: StreamChunk[]; status?: number }> {
   try {
+    // Initialize routes if needed
+    await initRouteConfig();
+    
     // Get the auth token from cookies
     const authToken = cookies().get('jwtToken')?.value;
     
@@ -201,6 +257,9 @@ export async function sendMessageLambda(
  */
 export async function getConversationLambda(conversationId: string): Promise<any> {
   try {
+    // Initialize routes if needed
+    await initRouteConfig();
+    
     // Get the auth token from cookies
     const authToken = cookies().get('jwtToken')?.value;
     
@@ -254,6 +313,9 @@ export async function getConversationLambda(conversationId: string): Promise<any
  */
 export async function getConversationsLambda(): Promise<{ error?: string; conversations?: any[]; status?: number }> {
   try {
+    // Initialize routes if needed
+    await initRouteConfig();
+    
     // Get the auth token from cookies
     const authToken = cookies().get('jwtToken')?.value;
     
@@ -326,6 +388,9 @@ export async function getConversationsLambda(): Promise<{ error?: string; conver
  */
 export async function getChatHistoryLambda(conversationId: string): Promise<{ error?: string; messages?: any[]; status?: number }> {
   try {
+    // Initialize routes if needed
+    await initRouteConfig();
+    
     // Get the auth token from cookies
     const authToken = cookies().get('jwtToken')?.value;
     

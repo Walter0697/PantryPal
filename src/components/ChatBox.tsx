@@ -1,16 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { FaTimes, FaPaperPlane, FaCaretDown, FaHistory } from 'react-icons/fa';
-import { getChatService, CHAT_IMPLEMENTATION, ChatImplementation } from '../config/chatConfig';
-import { setupTokenSync } from '../util/tokenSync';
+import { FaTimes, FaRegLightbulb, FaPaperPlane, FaSpinner, FaArrowDown, FaBars } from 'react-icons/fa';
 
-// For direct server actions if needed as a fallback
-import { sendMessageAction, getConversationsAction, getChatHistoryAction } from '../server/actions/chatActions';
+// Import only the direct Lambda methods
 import { sendMessageLambda, getConversationsLambda, getChatHistoryLambda } from '../server/actions/lambdaChatActions';
 
 // Default conversation title
-const DEFAULT_CHAT_TITLE = 'Your Kitchen Assistant';
+const DEFAULT_CHAT_TITLE = 'New Chat';
 
 // Welcome message variants
 const WELCOME_MESSAGES = [
@@ -29,12 +26,12 @@ const getRandomWelcomeMessage = (): string => {
 interface Message {
   id: string;
   content: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   timestamp: Date;
+  isNew?: boolean;
   isStreaming?: boolean;
   fullContent?: string; // Store the full content while typing
-  isNew?: boolean; // Flag to identify new messages for animation
-  title?: string; // Message title
+  title?: string;
 }
 
 interface Conversation {
@@ -296,7 +293,7 @@ const formatSpecialContent = (content: string): React.ReactNode => {
 
 interface Props {
   onClose?: () => void;
-  initialConversationId?: string;
+  initialConversationId?: string | null;
   initialConversationTitle?: string;
   isFullScreen?: boolean;
 }
@@ -335,14 +332,7 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
     setIsLoadingConversations(true);
     
     try {
-      let result;
-      
-      // Use the appropriate implementation based on configuration
-      if (CHAT_IMPLEMENTATION === ChatImplementation.DIRECT_LAMBDA) {
-        result = await getConversationsLambda();
-      } else {
-        result = await getConversationsAction();
-      }
+      const result = await getConversationsLambda();
       
       if (result.error) {
         if (result.status === 401 || result.status === 403) {
@@ -388,14 +378,7 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
     setMessages([]); // Clear messages while loading
     
     try {
-      let result;
-      
-      // Use the appropriate implementation based on configuration
-      if (CHAT_IMPLEMENTATION === ChatImplementation.DIRECT_LAMBDA) {
-        result = await getChatHistoryLambda(conversationId);
-      } else {
-        result = await getChatHistoryAction(conversationId);
-      }
+      const result = await getChatHistoryLambda(conversationId);
       
       if (result.error) {
         if (result.status === 401 || result.status === 403) {
@@ -484,9 +467,6 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
     if (inputRef.current) {
       inputRef.current.focus();
     }
-    
-    // Set up token synchronization for server actions
-    setupTokenSync();
     
     // Only fetch conversations if we have an initialConversationId
     if (initialConversationId) {
@@ -618,42 +598,8 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       // Create placeholder message for streaming response
       const streamingMessageId = Date.now().toString() + '1';
       
-      // Get the configured chat service
-      let result;
-      
-      try {
-        // Try to use the configured chat implementation
-        console.log(`Using chat implementation: ${CHAT_IMPLEMENTATION}`);
-        
-        // Dynamic import of the chat service
-        const chatServiceModule = await getChatService();
-        
-        // Call the appropriate chat service method
-        if (CHAT_IMPLEMENTATION === ChatImplementation.DIRECT_LAMBDA) {
-          result = await sendMessageLambda(userMessage.content, conversationId || undefined);
-        } else if (CHAT_IMPLEMENTATION === ChatImplementation.API_GATEWAY) {
-          result = await sendMessageAction(userMessage.content, conversationId || undefined);
-        } else {
-          // For client-side implementation or fallback
-          const sendMessage = chatServiceModule.sendMessage;
-          
-          // Use the streaming capability
-          const chunks: any[] = [];
-          const onChunk = (chunk: any) => {
-            chunks.push(chunk);
-          };
-          
-          await sendMessage(userMessage.content, conversationId || undefined, onChunk);
-          
-          // Convert result format to match server action format
-          result = { chunks };
-        }
-      } catch (serviceError) {
-        console.error('Error using configured chat service:', serviceError);
-        // Fall back to direct server action as last resort
-        console.log('Falling back to direct server action');
-        result = await sendMessageAction(userMessage.content, conversationId || undefined);
-      }
+      // Use direct Lambda invocation
+      const result = await sendMessageLambda(userMessage.content, conversationId || undefined);
       
       // Check for errors
       if (result.error) {
@@ -874,7 +820,7 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
                 }}
                 title="Conversation history"
               >
-                <FaHistory className="h-4 w-4" />
+                <FaBars className="h-4 w-4" />
               </button>
               
               {/* Conversation Menu Dropdown */}
