@@ -771,7 +771,7 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
   }, [messages, isAtBottom]);
 
   return (
-    <div className="bg-white rounded-lg shadow-lg flex flex-col h-[90vh] max-h-[90vh] w-full overflow-hidden">
+    <div className="bg-white rounded-lg shadow-lg flex flex-col h-full w-full overflow-hidden">
       {/* Header - Make entire header clickable */}
       <div 
         className="bg-blue-700 text-white p-3 flex justify-between items-center cursor-pointer"
@@ -978,7 +978,7 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       </div>
       
       {/* Input Form */}
-      <form onSubmit={handleSendMessage} className="border-t border-gray-200 p-3 flex flex-col bg-white">
+      <form onSubmit={handleSendMessage} className="border-t border-gray-200 p-3 flex flex-col bg-white mt-auto">
         {/* Thinking indicator - show only when loading and no response started yet */}
         {isLoading && !messages.some(m => m.isStreaming) && (
           <div className="text-gray-600 text-xs mb-2 w-full py-2 px-3 bg-gray-200 rounded flex items-center justify-start shadow-sm">

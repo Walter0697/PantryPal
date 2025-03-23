@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 import NavigationWrapper from "../components/NavigationWrapper";
 import { AuthProvider } from "../components/AuthProvider";
 import Footer from "../components/Footer";
+import ChatButton from "../components/ChatButton";
 
 // Import the initialization module to ensure it runs when the app starts
 import '../util/server-only/init';
@@ -116,6 +117,9 @@ export default async function RootLayout({
           <main className="flex-grow">
             {children}
           </main>
+          
+          {/* Chat Button - appears on every page */}
+          <ChatButton />
         </AuthProvider>
         
         <Footer />
