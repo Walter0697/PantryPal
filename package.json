@@ -9,9 +9,15 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.760.0",
     "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/client-lambda": "^3.772.0",
+    "@aws-sdk/credential-provider-node": "^3.772.0",
     "@aws-sdk/lib-dynamodb": "^3.758.0",
+    "@aws-sdk/protocol-http": "^3.370.0",
+    "@aws-sdk/signature-v4": "^3.370.0",
+    "@aws-sdk/util-utf8-node": "^3.259.0",
     "@types/react-transition-group": "^4.4.12",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",

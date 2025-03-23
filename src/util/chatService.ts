@@ -10,6 +10,18 @@ interface ChatResponse {
 // Base URL for the API - adjust based on environment
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3010/dev';
 
+// We cannot securely store AWS credentials on the client side
+// Note: This is a temporary solution - for production, use server actions instead
+const generateRequestHeaders = (authToken: string | null) => {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authToken || ''}`,
+    // Include custom header to indicate this request should be authenticated
+    // The API Gateway can be configured to recognize this header
+    'x-api-client': 'pantry-pal-webapp'
+  };
+};
+
 /**
  * Send a message to the chat API
  * @param message The message text to send
@@ -30,15 +42,13 @@ export async function sendMessage(
       console.log('Starting new conversation');
     }
     
-    // No need to get userId - system doesn't require it
+    // Get auth token
+    const authToken = getAuthToken();
     
     // Make API request
     const response = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getAuthToken()}`
-      },
+      headers: generateRequestHeaders(authToken),
       body: JSON.stringify({
         message,
         conversationId,
@@ -112,11 +122,12 @@ export async function sendMessage(
  */
 export async function getConversation(conversationId: string): Promise<any> {
   try {
+    // Get auth token
+    const authToken = getAuthToken();
+    
     const response = await fetch(`${API_BASE_URL}/conversation/${conversationId}`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${getAuthToken()}`
-      },
+      headers: generateRequestHeaders(authToken),
     });
 
     if (!response.ok) {

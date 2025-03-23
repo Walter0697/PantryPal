@@ -1,6 +1,7 @@
 'use server';
 
 import { cookies } from 'next/headers';
+import { signRequest, getAwsAuthHeaders } from '../../util/server-only/aws-signer';
 
 interface ChatResponse {
   conversationId: string;
@@ -18,8 +19,13 @@ interface StreamChunk {
 // Base URL for the API - adjust based on environment
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3010/dev';
 
-// Custom fetch with timeout
-async function fetchWithTimeout(url: string, options: RequestInit, timeout: number = 50000): Promise<Response> {
+// Custom fetch with timeout and AWS authentication
+async function fetchWithTimeout(
+  url: string, 
+  options: RequestInit, 
+  timeout: number = 50000,
+  useAwsSigning: boolean = true
+): Promise<Response> {
   const controller = new AbortController();
   const { signal } = controller;
   
@@ -29,8 +35,47 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeout: numb
   }, timeout);
   
   try {
+    // Get original headers
+    const originalHeaders = options.headers || {};
+    
+    // Add AWS authentication
+    let requestHeaders = originalHeaders;
+    
+    if (useAwsSigning) {
+      try {
+        // Try signature V4 first
+        const signedHeaders = await signRequest(
+          url,
+          options.method || 'GET',
+          options.headers as Record<string, string>,
+          typeof options.body === 'string' ? options.body : undefined
+        );
+        
+        // Include both signed headers and explicit credentials
+        // as the API might be configured to accept either
+        const awsAuthHeaders = await getAwsAuthHeaders();
+        requestHeaders = {
+          ...signedHeaders,
+          ...awsAuthHeaders
+        };
+        
+        console.log('Using AWS signed request headers');
+      } catch (error) {
+        console.error('AWS signature failed, falling back to direct credentials:', error);
+        // Fall back to direct credential headers
+        const authToken = options.headers && 'Authorization' in options.headers ? 
+          options.headers['Authorization'] : undefined;
+        
+        requestHeaders = {
+          ...originalHeaders,
+          ...await getAwsAuthHeaders(authToken as string)
+        };
+      }
+    }
+    
     const response = await fetch(url, {
       ...options,
+      headers: requestHeaders,
       signal
     });
     return response;
@@ -91,19 +136,35 @@ export async function sendMessageAction(
       }
     }
     
-    // Make API request with a longer timeout (50 seconds)
-    const response = await fetchWithTimeout(`${API_BASE_URL}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
-      body: JSON.stringify({
-        message,
-        conversationId,
-        username, // Use the username from cookies
-      }),
-    }, 50000); // 50 second timeout
+    // Prepare request body
+    const requestBody = JSON.stringify({
+      message,
+      conversationId,
+      username, // Use the username from cookies
+    });
+    
+    // Prepare base headers
+    const baseHeaders = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    };
+    
+    // Request URL
+    const chatUrl = `${API_BASE_URL}/chat`;
+    
+    console.log(`Sending chat request to ${chatUrl}`);
+    
+    // Make API request with a longer timeout (50 seconds) and AWS authentication
+    const response = await fetchWithTimeout(
+      chatUrl, 
+      {
+        method: 'POST',
+        headers: baseHeaders,
+        body: requestBody,
+      }, 
+      50000, 
+      true // Use AWS signing
+    );
     
     // Handle unauthorized responses from the API
     if (response.status === 401 || response.status === 403) {
@@ -182,12 +243,25 @@ export async function getConversationAction(conversationId: string): Promise<any
     // Get username from cookies (set by AuthProvider) 
     const username = cookies().get('username')?.value;
     
-    const response = await fetchWithTimeout(`${API_BASE_URL}/conversation/${conversationId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authToken}`
-      },
-    }, 30000); // 30 second timeout for conversation retrieval
+    // Prepare base headers
+    const baseHeaders = {
+      'Authorization': `Bearer ${authToken}`
+    };
+
+    const url = `${API_BASE_URL}/conversation/${conversationId}`;
+    
+    console.log(`Fetching conversation with ID ${conversationId} from ${url}`);
+    
+    // Make request with AWS authentication
+    const response = await fetchWithTimeout(
+      url, 
+      {
+        method: 'GET',
+        headers: baseHeaders,
+      }, 
+      30000,
+      true // Use AWS signing
+    );
 
     if (!response.ok) {
       throw new Error(`Conversation API error: ${response.status} ${response.statusText}`);
@@ -196,6 +270,7 @@ export async function getConversationAction(conversationId: string): Promise<any
     const data = await response.json();
     return data;
   } catch (error) {
+    console.error(`Error fetching conversation ${conversationId}:`, error);
     throw error;
   }
 }
@@ -228,12 +303,23 @@ export async function getConversationsAction(): Promise<{ error?: string; conver
       url += `?username=${encodeURIComponent(username)}`;
     }
     
-    const response = await fetchWithTimeout(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authToken}`
-      },
-    }, 10000); // 10 second timeout
+    // Prepare base headers
+    const baseHeaders = {
+      'Authorization': `Bearer ${authToken}`
+    };
+    
+    console.log(`Fetching conversations from ${url}`);
+    
+    // Make request with AWS authentication
+    const response = await fetchWithTimeout(
+      url, 
+      {
+        method: 'GET',
+        headers: baseHeaders,
+      }, 
+      10000,
+      true // Use AWS signing
+    );
     
     // Handle unauthorized responses
     if (response.status === 401 || response.status === 403) {
@@ -254,6 +340,7 @@ export async function getConversationsAction(): Promise<{ error?: string; conver
     
     return { conversations: conversationsArray };
   } catch (error) {
+    console.error('Error fetching conversations:', error);
     return { 
       error: error instanceof Error ? error.message : 'Failed to fetch conversations', 
     };
@@ -286,12 +373,23 @@ export async function getChatHistoryAction(conversationId: string): Promise<{ er
       url += `?username=${encodeURIComponent(username)}`;
     }
     
-    const response = await fetchWithTimeout(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authToken}`
-      },
-    }, 10000); // 10 second timeout
+    // Prepare base headers
+    const baseHeaders = {
+      'Authorization': `Bearer ${authToken}`
+    };
+    
+    console.log(`Fetching chat history for ${conversationId} from ${url}`);
+    
+    // Make request with AWS authentication
+    const response = await fetchWithTimeout(
+      url, 
+      {
+        method: 'GET',
+        headers: baseHeaders,
+      }, 
+      10000,
+      true // Use AWS signing
+    );
     
     // Handle unauthorized responses
     if (response.status === 401 || response.status === 403) {
@@ -312,6 +410,7 @@ export async function getChatHistoryAction(conversationId: string): Promise<{ er
     
     return { messages: messagesArray };
   } catch (error) {
+    console.error(`Error fetching chat history for ${conversationId}:`, error);
     return { 
       error: error instanceof Error ? error.message : 'Failed to fetch chat history', 
     };

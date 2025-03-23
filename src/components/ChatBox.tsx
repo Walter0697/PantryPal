@@ -2,8 +2,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { FaTimes, FaPaperPlane, FaCaretDown, FaHistory } from 'react-icons/fa';
-import { sendMessageAction, getConversationsAction, getChatHistoryAction } from '../app/actions/chatActions';
+import { getChatService, CHAT_IMPLEMENTATION, ChatImplementation } from '../config/chatConfig';
 import { setupTokenSync } from '../util/tokenSync';
+
+// For direct server actions if needed as a fallback
+import { sendMessageAction, getConversationsAction, getChatHistoryAction } from '../server/actions/chatActions';
+import { sendMessageLambda, getConversationsLambda, getChatHistoryLambda } from '../server/actions/lambdaChatActions';
 
 // Default conversation title
 const DEFAULT_CHAT_TITLE = 'Your Kitchen Assistant';
@@ -315,7 +319,11 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
   const [isConversationMenuOpen, setIsConversationMenuOpen] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
-  const [hasConversationStarted, setHasConversationStarted] = useState(true);
+  const [hasConversationStarted, setHasConversationStarted] = useState(false);
+  const [conversationsError, setConversationsError] = useState<string | null>(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [preventAutoSelect, setPreventAutoSelect] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -325,40 +333,42 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
   // Function to fetch conversations
   const fetchConversations = async () => {
     setIsLoadingConversations(true);
+    
     try {
-      const result = await getConversationsAction();
+      let result;
+      
+      // Use the appropriate implementation based on configuration
+      if (CHAT_IMPLEMENTATION === ChatImplementation.DIRECT_LAMBDA) {
+        result = await getConversationsLambda();
+      } else {
+        result = await getConversationsAction();
+      }
+      
       if (result.error) {
-        console.error('Failed to fetch conversations:', result.error);
-      } else if (result.conversations) {
-        // Make sure each conversation has at least a default title
-        const formattedConversations = result.conversations.map((conv: any) => ({
-          ...conv,
-          title: conv.title || `Conversation ${conv.id.substr(0, 8)}`
-        }));
+        if (result.status === 401 || result.status === 403) {
+          // Token is invalid or expired
+          console.log('Authentication error fetching conversations, redirecting to login');
+          setShowLoginModal(true);
+          return;
+        }
         
-        // Filter out duplicates and current conversation
-        const uniqueConversations: Conversation[] = [];
-        const conversationIds = new Set<string>();
-        
-        formattedConversations.forEach((conv: Conversation) => {
-          // Skip current conversation and duplicates
-          if (!conversationIds.has(conv.id) && conv.id !== conversationId) {
-            conversationIds.add(conv.id);
-            uniqueConversations.push(conv);
-          }
-        });
-        
-        // Sort by updated date, most recent first
-        uniqueConversations.sort((a, b) => {
-          const dateA = new Date(a.updatedAt || a.createdAt);
-          const dateB = new Date(b.updatedAt || b.createdAt);
-          return dateB.getTime() - dateA.getTime();
-        });
-        
-        setConversations(uniqueConversations);
+        throw new Error(result.error);
+      }
+      
+      // Sort conversations by updatedAt (most recent first)
+      const sortedConversations = [...(result.conversations || [])].sort((a, b) => {
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
+      
+      setConversations(sortedConversations);
+      
+      // Only auto-select if explicitly told to do so (for example, with initialConversationId)
+      if (initialConversationId && sortedConversations.length > 0 && !preventAutoSelect) {
+        handleSelectConversation(sortedConversations[0].id);
       }
     } catch (error) {
       console.error('Error fetching conversations:', error);
+      setConversationsError('Failed to load conversations. Please try again later.');
     } finally {
       setIsLoadingConversations(false);
     }
@@ -371,65 +381,69 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
   };
 
   // Function to load chat history
-  const loadChatHistory = async (conversationId: string, conversationTitle?: string) => {
+  const loadChatHistory = async (conversationId: string) => {
+    if (!conversationId) return;
+    
+    setIsLoadingMessages(true);
+    setMessages([]); // Clear messages while loading
+    
     try {
-      setIsLoading(true);
+      let result;
       
-      const result = await getChatHistoryAction(conversationId);
+      // Use the appropriate implementation based on configuration
+      if (CHAT_IMPLEMENTATION === ChatImplementation.DIRECT_LAMBDA) {
+        result = await getChatHistoryLambda(conversationId);
+      } else {
+        result = await getChatHistoryAction(conversationId);
+      }
       
       if (result.error) {
-        console.error('Failed to fetch chat history:', result.error);
-        return;
-      }
-      
-      // Update the conversation ID first
-      setConversationId(conversationId);
-      
-      // Update title right away if provided - don't wait for messages to load
-      if (conversationTitle) {
-        updateTitle(conversationTitle);
-      }
-      
-      if (result.messages && result.messages.length > 0) {
-        // Format messages from the API to match our Message interface
-        const formattedMessages: Message[] = result.messages.map((msg: any) => ({
-          id: msg.id || Date.now().toString() + Math.random().toString(),
-          content: msg.content || '',
-          role: msg.role as 'user' | 'assistant',
-          timestamp: new Date(msg.timestamp || Date.now()),
-          title: msg.title
-        }));
-        
-        // Update conversation title if not already set and available in the first assistant message
-        if (!conversationTitle) {
-          const assistantMsg = formattedMessages.find(m => m.role === 'assistant' && m.title);
-          if (assistantMsg?.title) {
-            updateTitle(assistantMsg.title);
-          }
+        if (result.status === 401 || result.status === 403) {
+          // Token is invalid or expired
+          console.log('Authentication error loading chat history, redirecting to login');
+          setShowLoginModal(true);
+          return;
         }
         
-        // Update messages
-        setMessages(formattedMessages);
-        
-        // Refresh conversations list to reflect the new current conversation
-        fetchConversations();
-        
-        // Set hasConversationStarted to false when messages are loaded
-        setHasConversationStarted(false);
-      } else {
-        // If no messages, set empty array
-        setMessages([]);
-        
-        // Refresh conversations list to reflect the new current conversation
-        fetchConversations();
-        
-        // Set hasConversationStarted to true when no messages
-        setHasConversationStarted(true);
+        throw new Error(result.error);
       }
+      
+      // Find the conversation to set the title
+      const conversation = conversations.find(c => c.id === conversationId);
+      if (conversation) {
+        setConversationTitle(conversation.title);
+      }
+      
+      // Format messages for the UI
+      const formattedMessages = (result.messages || []).map((msg: any) => ({
+        id: msg.id || msg.messageId || Date.now().toString() + Math.random().toString(),
+        content: msg.content || msg.message || '',
+        role: msg.role || (msg.isUser ? 'user' : 'assistant'),
+        timestamp: new Date(msg.timestamp || msg.createdAt || Date.now()),
+      }));
+      
+      // Sort by timestamp if available
+      const sortedMessages = formattedMessages.sort((a: any, b: any) => {
+        return a.timestamp.getTime() - b.timestamp.getTime();
+      });
+      
+      // Set conversation ID explicitly to ensure buttons are enabled
+      setConversationId(conversationId);
+      
+      // This is an existing conversation, so set hasConversationStarted to true
+      setHasConversationStarted(true);
+      
+      setMessages(sortedMessages);
     } catch (error) {
       console.error('Error loading chat history:', error);
+      setMessages([{
+        id: 'error',
+        content: 'Failed to load chat history. Please try again later.',
+        role: 'assistant',
+        timestamp: new Date(),
+      }]);
     } finally {
-      setIsLoading(false);
+      setIsLoadingMessages(false);
     }
   };
 
@@ -445,8 +459,24 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       timestamp: new Date(),
       title: DEFAULT_CHAT_TITLE
     }]);
-    fetchConversations();
-    setHasConversationStarted(true);
+    setHasConversationStarted(false); // Set to false to enable starting new conversations
+  };
+
+  /**
+   * Previously updated the URL - now this is an empty function as requested
+   */
+  const updateUrl = (conversationId: string) => {
+    // Do nothing - no URL modifications as requested
+  };
+
+  // Add the handleSelectConversation function
+  /**
+   * Handles selecting a conversation from the list
+   */
+  const handleSelectConversation = (id: string) => {
+    if (id === conversationId) return; // Already selected
+    setConversationId(id);
+    loadChatHistory(id);
   };
 
   useEffect(() => {
@@ -458,8 +488,10 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
     // Set up token synchronization for server actions
     setupTokenSync();
     
-    // Fetch username
-    fetchConversations();
+    // Only fetch conversations if we have an initialConversationId
+    if (initialConversationId) {
+      fetchConversations();
+    }
     
     // Clean up any typing timers when component unmounts
     return () => {
@@ -586,11 +618,42 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       // Create placeholder message for streaming response
       const streamingMessageId = Date.now().toString() + '1';
       
-      // Call the server action instead of the chatService
-      const result = await sendMessageAction(
-        userMessage.content, 
-        conversationId || undefined
-      );
+      // Get the configured chat service
+      let result;
+      
+      try {
+        // Try to use the configured chat implementation
+        console.log(`Using chat implementation: ${CHAT_IMPLEMENTATION}`);
+        
+        // Dynamic import of the chat service
+        const chatServiceModule = await getChatService();
+        
+        // Call the appropriate chat service method
+        if (CHAT_IMPLEMENTATION === ChatImplementation.DIRECT_LAMBDA) {
+          result = await sendMessageLambda(userMessage.content, conversationId || undefined);
+        } else if (CHAT_IMPLEMENTATION === ChatImplementation.API_GATEWAY) {
+          result = await sendMessageAction(userMessage.content, conversationId || undefined);
+        } else {
+          // For client-side implementation or fallback
+          const sendMessage = chatServiceModule.sendMessage;
+          
+          // Use the streaming capability
+          const chunks: any[] = [];
+          const onChunk = (chunk: any) => {
+            chunks.push(chunk);
+          };
+          
+          await sendMessage(userMessage.content, conversationId || undefined, onChunk);
+          
+          // Convert result format to match server action format
+          result = { chunks };
+        }
+      } catch (serviceError) {
+        console.error('Error using configured chat service:', serviceError);
+        // Fall back to direct server action as last resort
+        console.log('Falling back to direct server action');
+        result = await sendMessageAction(userMessage.content, conversationId || undefined);
+      }
       
       // Check for errors
       if (result.error) {
@@ -637,12 +700,12 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
         let responseText = '';
         let messageTitle = '';
         
-        // Process all chunks we received from the server action
+        // Process all chunks we received
         for (const chunk of result.chunks) {
           responseStarted = true;
           
           // Try to parse JSON if needed
-          if (chunk.text.startsWith('data: ')) {
+          if (chunk.text && chunk.text.startsWith('data: ')) {
             try {
               const jsonString = chunk.text.substring(6).trim();
               const jsonData = JSON.parse(jsonString);
@@ -660,93 +723,52 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
               // If this chunk contains a conversationId, save it
               if (jsonData.conversationId && !conversationId) {
                 setConversationId(jsonData.conversationId);
-                // Refresh conversations list when we get a new conversation ID
-                fetchConversations();
               }
             } catch (e) {
-              // If parsing fails, just append the raw chunk
-              responseText += chunk.text;
+              // If parsing fails, just use the raw text
+              responseText = chunk.text;
             }
-          } else {
-            // Regular chunk handling
-            responseText += chunk.text;
+          } else if (typeof chunk === 'string') {
+            responseText = chunk;
+          } else if (chunk.text) {
+            responseText = chunk.text;
           }
           
-          // Update the message with the new content after processing each chunk
+          // Update the message with each chunk
           setMessages(prev => {
             return prev.map(msg => {
               if (msg.id === streamingMessageId) {
                 return {
                   ...msg,
                   fullContent: responseText,
-                  isNew: true,
-                  title: messageTitle || undefined
-                }
+                  isStreaming: true,
+                };
               }
               return msg;
             });
           });
+          
+          // Start typing animation for this message
+          safelyStartTyping(streamingMessageId, responseText);
         }
-        
-        // Start the typing animation with the final text
-        setTimeout(() => {
-          setMessages(prev => {
-            const streamingMsg = prev.find(m => m.id === streamingMessageId);
-            if (streamingMsg && streamingMsg.fullContent !== streamingMsg.content) {
-              safelyStartTyping(streamingMessageId, streamingMsg.fullContent || '');
-            }
-            return prev;
-          });
-        }, 100);
-        
-      } else {
-        // Handle case where we got a response but no chunks
-        const errorMessage = 'Received empty response from server';
-        throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Chat error:', error);
       
-      // Try to extract error details if it's in JSON format (from our custom Response)
-      let errorMessage = 'Sorry, something went wrong. Please try again.';
-      let isTimeout = false;
+      // Show error to user
+      const errorMessage: Message = {
+        id: Date.now().toString() + '_error',
+        content: error instanceof Error 
+          ? `Error: ${error.message}` 
+          : 'An unexpected error occurred. Please try again.',
+        role: 'assistant' as const,
+        timestamp: new Date(),
+        isNew: true,
+      };
       
-      if (error instanceof Error) {
-        // Check if it's a timeout error
-        isTimeout = error.message.includes('timed out') || error.message.includes('timeout');
-        
-        if (isTimeout) {
-          errorMessage = 'The request timed out. Your message might be too complex or our servers are busy. Please try a shorter message or try again later.';
-        } else if (error.message.includes('Chat API error')) {
-          // If it's an API error, try to parse the response
-          try {
-            // Extract status code if available
-            const statusMatch = error.message.match(/(\d{3})/);
-            if (statusMatch && statusMatch[1] === '504') {
-              isTimeout = true;
-              errorMessage = 'The request timed out. Your message might be too complex or our servers are busy. Please try a shorter message or try again later.';
-            }
-          } catch (e) {
-            // Use default error message
-          }
-        }
-      }
-      
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now().toString() + '_error',
-          content: errorMessage,
-          role: 'assistant' as const,
-          timestamp: new Date(),
-          isStreaming: false,
-          isNew: true,
-        }
-      ]);
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
-      // Set hasConversationStarted to false after message exchange is complete
-      setHasConversationStarted(false);
     }
   };
 
@@ -826,14 +848,14 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
             {/* Conversation Menu Button */}
             <div className="relative flex items-center">
               <button 
-                className={`mr-2 p-1 rounded-full ${hasConversationStarted ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'hover:bg-gray-200 text-gray-600'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                className={`mr-2 p-1 rounded-full ${!conversationId || conversationId === null ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'hover:bg-gray-200 text-gray-600'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                 onClick={() => {
-                  if (!hasConversationStarted) {
+                  if (conversationId) {
                     resetConversation();
                   }
                 }}
-                disabled={hasConversationStarted}
-                title={hasConversationStarted ? "Cannot start new conversation while in active conversation" : "New conversation"}
+                disabled={!conversationId}
+                title={!conversationId ? "Already in a new conversation" : "New conversation"}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -891,7 +913,7 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
                             key={conv.id}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 focus:outline-none focus:bg-blue-50 truncate flex items-center justify-between"
                             onClick={() => {
-                              loadChatHistory(conv.id, conv.title || `Conversation ${conv.id.substr(0, 8)}`);
+                              loadChatHistory(conv.id);
                               setIsConversationMenuOpen(false);
                             }}
                           >
@@ -913,18 +935,18 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
                     
                     <div className="border-t border-gray-200 mt-2 pt-2">
                       <button 
-                        className={`w-full text-left px-4 py-2 text-sm ${hasConversationStarted ? 'text-gray-400 bg-gray-50 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'} focus:outline-none focus:bg-blue-50 flex items-center`}
+                        className={`w-full text-left px-4 py-2 text-sm ${!conversationId || conversationId === null ? 'text-gray-400 bg-gray-50 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'} focus:outline-none focus:bg-blue-50 flex items-center`}
                         onClick={(e) => {
-                          if (!hasConversationStarted) {
+                          if (conversationId) {
                             e.stopPropagation();
                             resetConversation();
                             setIsConversationMenuOpen(false);
                           }
                         }}
-                        disabled={hasConversationStarted}
-                        title={hasConversationStarted ? "Cannot start new conversation while in active conversation" : "Start a new conversation"}
+                        disabled={!conversationId}
+                        title={!conversationId ? "Already in a new conversation" : "Start a new conversation"}
                       >
-                        <span className={hasConversationStarted ? "text-gray-400" : "text-blue-600 mr-1"}>+</span> Start New Conversation
+                        <span className={!conversationId ? "text-gray-400" : "text-blue-600 mr-1"}>+</span> Start New Conversation
                       </button>
                     </div>
                   </div>
