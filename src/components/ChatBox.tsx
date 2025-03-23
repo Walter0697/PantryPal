@@ -2,9 +2,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { FaTimes, FaRegLightbulb, FaPaperPlane, FaSpinner, FaArrowDown, FaBars } from 'react-icons/fa';
+import { useRouter } from 'next/navigation';
 
 // Import only the direct Lambda methods
-import { sendMessageLambda, getConversationsLambda, getChatHistoryLambda } from '../server/actions/lambdaChatActions';
+import { sendMessageLambda } from '../server/actions/lambdaChatActions';
+
+// Import the direct database methods
+import { getConversationsFromDB, getChatHistoryFromDB } from '../server/actions/dbChatActions';
 
 // Default conversation title
 const DEFAULT_CHAT_TITLE = 'New Chat';
@@ -321,20 +325,29 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [preventAutoSelect, setPreventAutoSelect] = useState(true);
+  const [userScrolled, setUserScrolled] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const conversationMenuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const messageContainerRef = useRef<HTMLDivElement>(null);
 
   // Function to fetch conversations
   const fetchConversations = async () => {
     setIsLoadingConversations(true);
     
     try {
-      const result = await getConversationsLambda();
+      console.log('ChatBox: Fetching conversations from database');
+      // Use the direct database method instead of Lambda
+      const result = await getConversationsFromDB();
+      
+      console.log('ChatBox: Received database response for conversations:', result);
       
       if (result.error) {
+        console.error('ChatBox: Error from server:', result.error, 'Status:', result.status);
         if (result.status === 401 || result.status === 403) {
           // Token is invalid or expired
           console.log('Authentication error fetching conversations, redirecting to login');
@@ -350,10 +363,13 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
       
+      console.log('ChatBox: Sorted conversations:', sortedConversations);
+      
       setConversations(sortedConversations);
       
       // Only auto-select if explicitly told to do so (for example, with initialConversationId)
       if (initialConversationId && sortedConversations.length > 0 && !preventAutoSelect) {
+        console.log('ChatBox: Auto-selecting conversation', initialConversationId);
         handleSelectConversation(sortedConversations[0].id);
       }
     } catch (error) {
@@ -378,9 +394,15 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
     setMessages([]); // Clear messages while loading
     
     try {
-      const result = await getChatHistoryLambda(conversationId);
+      console.log('ChatBox: Loading chat history for conversation', conversationId);
+      
+      // Use the direct database method instead of Lambda
+      const result = await getChatHistoryFromDB(conversationId);
+      
+      console.log('ChatBox: Received database response for chat history:', result);
       
       if (result.error) {
+        console.error('ChatBox: Error from server:', result.error, 'Status:', result.status);
         if (result.status === 401 || result.status === 403) {
           // Token is invalid or expired
           console.log('Authentication error loading chat history, redirecting to login');
@@ -394,6 +416,7 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       // Find the conversation to set the title
       const conversation = conversations.find(c => c.id === conversationId);
       if (conversation) {
+        console.log('ChatBox: Setting conversation title to', conversation.title);
         setConversationTitle(conversation.title);
       }
       
@@ -405,10 +428,14 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
         timestamp: new Date(msg.timestamp || msg.createdAt || Date.now()),
       }));
       
+      console.log('ChatBox: Formatted messages for UI:', formattedMessages);
+      
       // Sort by timestamp if available
       const sortedMessages = formattedMessages.sort((a: any, b: any) => {
         return a.timestamp.getTime() - b.timestamp.getTime();
       });
+      
+      console.log('ChatBox: Sorted messages by timestamp:', sortedMessages);
       
       // Set conversation ID explicitly to ensure buttons are enabled
       setConversationId(conversationId);
@@ -480,13 +507,6 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       }
     };
   }, []);
-
-  useEffect(() => {
-    // Scroll to bottom when messages change
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
 
   // Function to simulate typing effect
   const typeMessage = (messageId: string, fullText: string) => {
@@ -571,148 +591,106 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
     typeMessage(messageId, text);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     
     if (!inputValue.trim() || isLoading) return;
     
-    // Mark that the conversation has started
-    setHasConversationStarted(true);
-    
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: inputValue,
-      role: 'user',
-      timestamp: new Date(),
-      isNew: true,
+      content: inputValue.trim(),
+      role: 'user' as const,
+      timestamp: new Date()
     };
     
-    setMessages(prev => [...prev, userMessage]);
+    // Add user message to the messages array
+    setMessages((prevMessages) => [...prevMessages, userMessage]);
+    
+    // Clear the input field
     setInputValue('');
+    
+    // Reset error state
+    setConversationsError(null);
+    
+    // Only scroll down for user's own messages
+    scrollToBottom(true);
+    
+    // Set that a conversation has started
+    setHasConversationStarted(true);
+    
     setIsLoading(true);
     
-    // Remove all "Thinking" indicator code - we'll just wait for the actual response
-    let responseStarted = false;
-
     try {
-      // Create placeholder message for streaming response
-      const streamingMessageId = Date.now().toString() + '1';
-      
-      // Use direct Lambda invocation
+      // Always use the direct Lambda sendMessageLambda function
       const result = await sendMessageLambda(userMessage.content, conversationId || undefined);
       
-      // Check for errors
+      // Check for error
       if (result.error) {
-        // Handle authentication errors
         if (result.status === 401 || result.status === 403) {
-          // Clear local token as it may be invalid or expired
-          localStorage.removeItem('jwtToken');
-          
-          const errorMessage: Message = {
-            id: Date.now().toString() + '_auth_error',
-            content: result.error,
-            role: 'assistant' as const,
-            timestamp: new Date(),
-            isNew: true,
-          };
-          setMessages(prev => [...prev, errorMessage]);
+          // Token is invalid or expired
+          console.log('Authentication error sending message, redirecting to login');
+          setShowLoginModal(true);
           return;
         }
         
-        // Handle timeout specifically
-        if (result.isTimeout) {
-          throw new Error(`Request timed out: ${result.error}`);
-        }
         throw new Error(result.error);
       }
       
-      // If we have chunks, process them
+      // Add bot response to messages
       if (result.chunks && result.chunks.length > 0) {
+        // Get the last chunk which should have the final state
+        const finalChunk = result.chunks[result.chunks.length - 1];
         
-        // Add a new streaming message on first chunk
-        const newMessage: Message = {
-          id: streamingMessageId,
-          content: '', // Start with empty content that will be "typed out"
-          fullContent: '', // This will hold the entire message
-          role: 'assistant',
+        // Create the assistant message
+        const assistantMessage: Message = {
+          id: Date.now().toString() + '-assistant',
+          content: '',  // Start with empty content for typing animation
+          fullContent: finalChunk.text || '', // Store full content for typing
+          role: 'assistant' as const,
           timestamp: new Date(),
-          isStreaming: true,
-          isNew: true,
+          isStreaming: true  // Add this flag to enable animation
         };
         
-        setMessages(prev => [...prev, newMessage]);
+        // Add to messages state - the useEffect will handle scrolling for this
+        setMessages((prevMessages) => [...prevMessages, assistantMessage]);
         
-        // Process all chunks
-        let responseText = '';
-        let messageTitle = '';
+        // Start typing animation for this message
+        safelyStartTyping(assistantMessage.id, finalChunk.text || '');
         
-        // Process all chunks we received
-        for (const chunk of result.chunks) {
-          responseStarted = true;
+        // Update conversation ID if it's a new conversation
+        if (finalChunk.conversationId && !conversationId) {
+          console.log('New conversation started with ID:', finalChunk.conversationId);
+          setConversationId(finalChunk.conversationId);
           
-          // Try to parse JSON if needed
-          if (chunk.text && chunk.text.startsWith('data: ')) {
-            try {
-              const jsonString = chunk.text.substring(6).trim();
-              const jsonData = JSON.parse(jsonString);
-              responseText = jsonData.message || '';
-              
-              // Store the title if it exists
-              if (jsonData.title && !messageTitle) {
-                messageTitle = jsonData.title;
-                // Update the conversation title
-                if (conversationTitle !== jsonData.title) {
-                  updateTitle(jsonData.title);
-                }
-              }
-              
-              // If this chunk contains a conversationId, save it
-              if (jsonData.conversationId && !conversationId) {
-                setConversationId(jsonData.conversationId);
-              }
-            } catch (e) {
-              // If parsing fails, just use the raw text
-              responseText = chunk.text;
-            }
-          } else if (typeof chunk === 'string') {
-            responseText = chunk;
-          } else if (chunk.text) {
-            responseText = chunk.text;
+          // If this is a new conversation with a title in the response, set it
+          if (finalChunk.title) {
+            setConversationTitle(finalChunk.title);
+          } else {
+            // If no title was provided, derive one from the first user message
+            setConversationTitle(userMessage.content.slice(0, 30) + (userMessage.content.length > 30 ? '...' : ''));
           }
           
-          // Update the message with each chunk
-          setMessages(prev => {
-            return prev.map(msg => {
-              if (msg.id === streamingMessageId) {
-                return {
-                  ...msg,
-                  fullContent: responseText,
-                  isStreaming: true,
-                };
-              }
-              return msg;
-            });
-          });
-          
-          // Start typing animation for this message
-          safelyStartTyping(streamingMessageId, responseText);
+          // Fetch conversations to get the latest list
+          fetchConversations();
         }
       }
+      
+      // Don't need to manually scroll here - the useEffect will handle it
+      // scrollToBottom();
     } catch (error) {
-      console.error('Chat error:', error);
+      console.error('Error sending message:', error);
+      setConversationsError('Failed to get a response. Please try again.');
       
-      // Show error to user
-      const errorMessage: Message = {
-        id: Date.now().toString() + '_error',
-        content: error instanceof Error 
-          ? `Error: ${error.message}` 
-          : 'An unexpected error occurred. Please try again.',
-        role: 'assistant' as const,
-        timestamp: new Date(),
-        isNew: true,
-      };
-      
-      setMessages(prev => [...prev, errorMessage]);
+      // Add error message to chat
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          id: Date.now().toString() + '-error',
+          content: 'Sorry, there was an error processing your request. Please try again.',
+          role: 'assistant' as const,
+          timestamp: new Date()
+        }
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -757,6 +735,40 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isConversationMenuOpen]);
+
+  // Add an effect to detect user scrolling
+  useEffect(() => {
+    const messageContainer = messageContainerRef.current;
+    if (!messageContainer) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = messageContainer;
+      // Check if user is at the bottom (with 50px tolerance)
+      const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+      setIsAtBottom(atBottom);
+    };
+
+    messageContainer.addEventListener('scroll', handleScroll);
+    return () => messageContainer.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Modify the scrollToBottom function to only scroll if user is at the bottom
+  const scrollToBottom = (forceScroll = false) => {
+    if (messagesEndRef.current && (forceScroll || isAtBottom)) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // This effect handles scrolling for new messages in a more controlled way
+  useEffect(() => {
+    // Only auto scroll when a new message is added AND user was already at the bottom
+    const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+    
+    if (lastMessage && (isAtBottom || lastMessage.role === 'user')) {
+      // This is a new message, scroll down only if user was at bottom
+      scrollToBottom();
+    }
+  }, [messages, isAtBottom]);
 
   return (
     <div className="bg-white rounded-lg shadow-lg flex flex-col h-[90vh] max-h-[90vh] w-full overflow-hidden">
@@ -904,7 +916,25 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       )}
       
       {/* Messages Container - Make this scrollable */}
-      <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
+      <div 
+        ref={messageContainerRef}
+        className="flex-1 p-4 overflow-y-auto bg-gray-50"
+      >
+        {/* Show scroll to bottom button when user has scrolled up */}
+        {!isAtBottom && (
+          <button
+            className="fixed bottom-20 right-8 bg-blue-600 text-white rounded-full p-2 shadow-md hover:bg-blue-700 transition-all duration-200 z-10"
+            onClick={() => {
+              if (messagesEndRef.current) {
+                messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+            aria-label="Scroll to bottom"
+          >
+            <FaArrowDown className="h-4 w-4" />
+          </button>
+        )}
+        
         <div className="space-y-4">
           {messages.map((message) => (
             <div 
@@ -945,7 +975,7 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       </div>
       
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="border-t border-gray-200 p-3 flex flex-col bg-white">
+      <form onSubmit={handleSendMessage} className="border-t border-gray-200 p-3 flex flex-col bg-white">
         {/* Thinking indicator - show only when loading and no response started yet */}
         {isLoading && !messages.some(m => m.isStreaming) && (
           <div className="text-gray-600 text-xs mb-2 w-full py-2 px-3 bg-gray-200 rounded flex items-center justify-start shadow-sm">

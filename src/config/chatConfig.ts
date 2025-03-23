@@ -1,25 +1,34 @@
 /**
  * Chat Configuration
  * 
- * This file configures the direct Lambda invocation.
- * For local development, the Lambda client will use serverless-offline.
+ * This file configures the chat implementation to use:
+ * - Direct Lambda invocation: Uses AWS Lambda functions for chat operations
+ * - Direct Database: Uses direct DynamoDB access for chat operations
+ * 
+ * For local development in Lambda mode, the Lambda client will use serverless-offline.
  * For production, it will use actual AWS Lambda functions.
  */
 
 export enum ChatImplementation {
-  DIRECT_LAMBDA = 'DIRECT_LAMBDA'
+  DIRECT_LAMBDA = 'DIRECT_LAMBDA',
+  DIRECT_DB = 'DIRECT_DB'
 }
 
 /**
  * Chat implementation to use
- * Only direct Lambda invocation is supported now
+ * DIRECT_DB is recommended for better performance and reliability
  */
-export const CHAT_IMPLEMENTATION: ChatImplementation = ChatImplementation.DIRECT_LAMBDA;
+export const CHAT_IMPLEMENTATION: ChatImplementation = ChatImplementation.DIRECT_DB;
 
 /**
- * Gets the Lambda chat service
+ * Gets the chat service based on implementation
  */
 export function getChatService() {
-  // Always use direct Lambda invocation
-  return import('../util/lambdaChat');
+  if (CHAT_IMPLEMENTATION === ChatImplementation.DIRECT_LAMBDA) {
+    return import('../util/lambdaChat');
+  } else {
+    // For direct DB implementation, there's no service to import
+    // Components will use the dbChatActions directly
+    return null;
+  }
 } 

@@ -10,7 +10,7 @@ const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
 // Determine if we're in local development mode
 const isLocal = process.env.APP_ENV !== 'production';
-const localEndpoint = 'http://localhost:3010'; // Match serverless-offline httpPort
+const localEndpoint = 'http://localhost:3002'; // Match serverless-offline httpPort
 
 // Create a Lambda client
 const lambdaClient = new Lambda({ 

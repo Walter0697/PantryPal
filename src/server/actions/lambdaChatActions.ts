@@ -17,7 +17,7 @@ interface StreamChunk {
   title?: string;
 }
 
-// Lambda function names - dynamically set based on environment
+// Lambda function names - using exact function names for local invocation
 const STAGE = process.env.APP_ENV === 'production' ? 'production' : 'dev';
 const BASE_NAME = 'pantrypal-chatbot-application';
 
@@ -29,11 +29,12 @@ const getProdLambdaConfig = () => ({
   HISTORY_LAMBDA: `${BASE_NAME}-${STAGE}-getChatHistory`
 });
 
+// Updated function names for dev environment using the exact function names provided
 const getDevLambdaConfig = () => ({
-  CHAT_LAMBDA: 'post - /dev/chat',
-  CONVERSATION_LAMBDA: 'get - /dev/conversation/{id}',
-  CONVERSATIONS_LAMBDA: 'get - /dev/conversations',
-  HISTORY_LAMBDA: 'get - /dev/conversation/{id}/history'
+  CHAT_LAMBDA: 'pantrypal-chatbot-application-dev-handleMessage',
+  CONVERSATION_LAMBDA: 'pantrypal-chatbot-application-dev-getConversation',
+  CONVERSATIONS_LAMBDA: 'pantrypal-chatbot-application-dev-listConversations',
+  HISTORY_LAMBDA: 'pantrypal-chatbot-application-dev-getChatHistory'
 });
 
 /**
@@ -220,7 +221,7 @@ export async function sendMessageLambda(
       if (Array.isArray(responseBody)) {
         for (const item of responseBody) {
           chunks.push({
-            text: `data: ${JSON.stringify(item)}`,
+            text: item.message || '',
             conversationId: item.conversationId,
             done: item.done,
             title: item.title
@@ -229,7 +230,7 @@ export async function sendMessageLambda(
       } else {
         // Single response
         chunks.push({
-          text: `data: ${JSON.stringify(responseBody)}`,
+          text: responseBody.message || '',
           conversationId: responseBody.conversationId,
           done: true,
           title: responseBody.title
