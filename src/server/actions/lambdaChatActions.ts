@@ -17,24 +17,18 @@ interface StreamChunk {
   title?: string;
 }
 
-// Lambda function names - using exact function names for local invocation
+// Lambda function names - using only the chat function now
 const STAGE = process.env.APP_ENV === 'production' ? 'production' : 'dev';
 const BASE_NAME = 'pantrypal-chatbot-application';
 
-// Lambda function configurations by environment
+// Lambda function configurations by environment - removed unused functions
 const getProdLambdaConfig = () => ({
   CHAT_LAMBDA: `${BASE_NAME}-${STAGE}-handleMessage`,
-  CONVERSATION_LAMBDA: `${BASE_NAME}-${STAGE}-getConversation`,
-  CONVERSATIONS_LAMBDA: `${BASE_NAME}-${STAGE}-listConversations`,
-  HISTORY_LAMBDA: `${BASE_NAME}-${STAGE}-getChatHistory`
 });
 
-// Updated function names for dev environment using the exact function names provided
+// Updated function names for dev environment - removed unused functions
 const getDevLambdaConfig = () => ({
   CHAT_LAMBDA: 'pantrypal-chatbot-application-dev-handleMessage',
-  CONVERSATION_LAMBDA: 'pantrypal-chatbot-application-dev-getConversation',
-  CONVERSATIONS_LAMBDA: 'pantrypal-chatbot-application-dev-listConversations',
-  HISTORY_LAMBDA: 'pantrypal-chatbot-application-dev-getChatHistory'
 });
 
 /**
@@ -55,11 +49,8 @@ export async function getRouteConfig() {
 // Production routes (default)
 const prodConfig = getProdLambdaConfig();
 
-// Start with production defaults
+// Start with production defaults - keep only the chat function
 let CHAT_LAMBDA = prodConfig.CHAT_LAMBDA;
-let CONVERSATION_LAMBDA = prodConfig.CONVERSATION_LAMBDA;
-let CONVERSATIONS_LAMBDA = prodConfig.CONVERSATIONS_LAMBDA;
-let HISTORY_LAMBDA = prodConfig.HISTORY_LAMBDA;
 
 // Initialize route config function that will be called at the start of each server action
 async function initRouteConfig() {
@@ -67,13 +58,10 @@ async function initRouteConfig() {
   if (!routesInitialized) {
     const config = await getRouteConfig();
     CHAT_LAMBDA = config.CHAT_LAMBDA;
-    CONVERSATION_LAMBDA = config.CONVERSATION_LAMBDA;
-    CONVERSATIONS_LAMBDA = config.CONVERSATIONS_LAMBDA;
-    HISTORY_LAMBDA = config.HISTORY_LAMBDA;
     
     // Log which environment we're using
     console.log(`Using ${STAGE} environment for Lambda functions or routes:`, { 
-      CHAT_LAMBDA, CONVERSATION_LAMBDA, CONVERSATIONS_LAMBDA, HISTORY_LAMBDA 
+      CHAT_LAMBDA
     });
     
     routesInitialized = true;
@@ -249,216 +237,6 @@ export async function sendMessageLambda(
     
     return { 
       error: errorMessage
-    };
-  }
-}
-
-/**
- * Get a conversation by ID using direct Lambda invocation
- */
-export async function getConversationLambda(conversationId: string): Promise<any> {
-  try {
-    // Initialize routes if needed
-    await initRouteConfig();
-    
-    // Get the auth token from cookies
-    const authToken = cookies().get('jwtToken')?.value;
-    
-    // Get AWS auth headers
-    const awsHeaders = await getAwsAuthHeaders(authToken);
-    
-    // Prepare payload for Lambda
-    const payload = {
-      pathParameters: {
-        id: conversationId
-      },
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        ...awsHeaders
-      }
-    };
-    
-    console.log(`Invoking Lambda function ${CONVERSATION_LAMBDA} directly for conversation ${conversationId}`);
-    
-    // Invoke Lambda function directly
-    const lambdaResponse = await invokeLambda(CONVERSATION_LAMBDA, payload);
-    
-    if (!lambdaResponse || !lambdaResponse.statusCode) {
-      throw new Error('Invalid response from Lambda function');
-    }
-    
-    if (lambdaResponse.statusCode === 401 || lambdaResponse.statusCode === 403) {
-      console.error(`Lambda returned unauthorized status: ${lambdaResponse.statusCode}`);
-      throw new Error('Your session has expired or you are not authorized. Please log in again.');
-    }
-    
-    if (lambdaResponse.statusCode !== 200) {
-      throw new Error(`Conversation API error: ${lambdaResponse.statusCode}`);
-    }
-    
-    // Ensure the body is a string
-    const responseBodyText = typeof lambdaResponse.body === 'string' 
-      ? lambdaResponse.body
-      : JSON.stringify(lambdaResponse.body);
-    
-    // Parse the response body
-    return JSON.parse(responseBodyText);
-  } catch (error) {
-    console.error(`Error in getConversationLambda for ${conversationId}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Fetch the list of conversations for the current user using direct Lambda invocation
- */
-export async function getConversationsLambda(): Promise<{ error?: string; conversations?: any[]; status?: number }> {
-  try {
-    // Initialize routes if needed
-    await initRouteConfig();
-    
-    // Get the auth token from cookies
-    const authToken = cookies().get('jwtToken')?.value;
-    
-    // Check if user is authenticated
-    if (!authToken) {
-      return {
-        error: 'Authentication required. Please log in to view conversations.',
-        status: 401
-      };
-    }
-    
-    // Get username from cookies (set by AuthProvider)
-    const username = cookies().get('username')?.value;
-    
-    // Get AWS auth headers
-    const awsHeaders = await getAwsAuthHeaders(authToken);
-    
-    // Prepare payload for Lambda
-    const payload = {
-      queryStringParameters: username ? { username } : undefined,
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        ...awsHeaders
-      }
-    };
-    
-    console.log(`Invoking Lambda function ${CONVERSATIONS_LAMBDA} directly for username ${username || 'unknown'}`);
-    
-    // Invoke Lambda function directly
-    const lambdaResponse = await invokeLambda(CONVERSATIONS_LAMBDA, payload);
-    
-    if (!lambdaResponse || !lambdaResponse.statusCode) {
-      throw new Error('Invalid response from Lambda function');
-    }
-    
-    if (lambdaResponse.statusCode === 401 || lambdaResponse.statusCode === 403) {
-      console.error(`Lambda returned unauthorized status: ${lambdaResponse.statusCode}`);
-      return {
-        error: 'Your session has expired or you are not authorized. Please log in again.',
-        status: lambdaResponse.statusCode
-      };
-    }
-    
-    if (lambdaResponse.statusCode !== 200) {
-      throw new Error(`API error: ${lambdaResponse.statusCode}`);
-    }
-    
-    // Ensure the body is a string
-    const responseBodyText = typeof lambdaResponse.body === 'string' 
-      ? lambdaResponse.body
-      : JSON.stringify(lambdaResponse.body);
-    
-    // Parse the response body
-    const data = JSON.parse(responseBodyText);
-    
-    // Check if data is an array directly or has a conversations property
-    const conversationsArray = Array.isArray(data) ? data : (data.conversations || []);
-    
-    return { conversations: conversationsArray };
-  } catch (error) {
-    console.error('Error in getConversationsLambda:', error);
-    return { 
-      error: error instanceof Error ? error.message : 'Failed to fetch conversations'
-    };
-  }
-}
-
-/**
- * Fetch the chat history for a specific conversation using direct Lambda invocation
- */
-export async function getChatHistoryLambda(conversationId: string): Promise<{ error?: string; messages?: any[]; status?: number }> {
-  try {
-    // Initialize routes if needed
-    await initRouteConfig();
-    
-    // Get the auth token from cookies
-    const authToken = cookies().get('jwtToken')?.value;
-    
-    // Check if user is authenticated
-    if (!authToken) {
-      return {
-        error: 'Authentication required. Please log in to view chat history.',
-        status: 401
-      };
-    }
-    
-    // Get username from cookies (set by AuthProvider)
-    const username = cookies().get('username')?.value;
-    
-    // Get AWS auth headers
-    const awsHeaders = await getAwsAuthHeaders(authToken);
-    
-    // Prepare payload for Lambda
-    const payload = {
-      pathParameters: {
-        id: conversationId,
-        resource: 'history'
-      },
-      queryStringParameters: username ? { username } : undefined,
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        ...awsHeaders
-      }
-    };
-    
-    console.log(`Invoking Lambda function ${HISTORY_LAMBDA} directly for conversation ${conversationId}`);
-    
-    // Invoke Lambda function directly
-    const lambdaResponse = await invokeLambda(HISTORY_LAMBDA, payload);
-    
-    if (!lambdaResponse || !lambdaResponse.statusCode) {
-      throw new Error('Invalid response from Lambda function');
-    }
-    
-    if (lambdaResponse.statusCode === 401 || lambdaResponse.statusCode === 403) {
-      console.error(`Lambda returned unauthorized status: ${lambdaResponse.statusCode}`);
-      return {
-        error: 'Your session has expired or you are not authorized. Please log in again.',
-        status: lambdaResponse.statusCode
-      };
-    }
-    
-    if (lambdaResponse.statusCode !== 200) {
-      throw new Error(`API error: ${lambdaResponse.statusCode}`);
-    }
-    
-    // Ensure the body is a string
-    const responseBodyText = typeof lambdaResponse.body === 'string' 
-      ? lambdaResponse.body
-      : JSON.stringify(lambdaResponse.body);
-    
-    // Parse the response body
-    const data = JSON.parse(responseBodyText);
-    
-    // Check if data is an array directly or has a messages property
-    const messagesArray = Array.isArray(data) ? data : (data.messages || []);
-    
-    return { messages: messagesArray };
-  } catch (error) {
-    console.error(`Error in getChatHistoryLambda for ${conversationId}:`, error);
-    return { 
-      error: error instanceof Error ? error.message : 'Failed to fetch chat history'
     };
   }
 } 

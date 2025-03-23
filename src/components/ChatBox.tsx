@@ -866,7 +866,10 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
                       <div className="px-4 py-3 text-sm text-gray-500">No recent conversations found.</div>
                     ) : (
                       <div className="max-h-64 overflow-y-auto">
-                        {conversations.map(conv => (
+                        {/* Filter out the current conversation from the list */}
+                        {conversations
+                          .filter(conv => conv.id !== conversationId)
+                          .map(conv => (
                           <button
                             key={conv.id}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 focus:outline-none focus:bg-blue-50 truncate flex items-center justify-between"
