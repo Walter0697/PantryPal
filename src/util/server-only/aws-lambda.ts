@@ -87,7 +87,6 @@ export async function invokeLambda(functionNameOrPath: string, payload: any): Pr
       // Parse the response payload
       if (response.Payload) {
         const responsePayload = new TextDecoder().decode(response.Payload);
-        console.log(`Lambda response from ${functionNameOrPath}:`, responsePayload.substring(0, 100) + (responsePayload.length > 100 ? '...' : ''));
         
         try {
           return JSON.parse(responsePayload);

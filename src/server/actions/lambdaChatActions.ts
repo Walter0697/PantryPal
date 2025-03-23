@@ -37,12 +37,10 @@ const getDevLambdaConfig = () => ({
 export async function getRouteConfig() {
   // For local development
   if (process.env.APP_ENV !== 'production') {
-    console.log('Using development API endpoints');
     return getDevLambdaConfig();
   }
   
   // For production
-  console.log('Using production Lambda functions');
   return getProdLambdaConfig();
 }
 
@@ -58,11 +56,6 @@ async function initRouteConfig() {
   if (!routesInitialized) {
     const config = await getRouteConfig();
     CHAT_LAMBDA = config.CHAT_LAMBDA;
-    
-    // Log which environment we're using
-    console.log(`Using ${STAGE} environment for Lambda functions or routes:`, { 
-      CHAT_LAMBDA
-    });
     
     routesInitialized = true;
   }
@@ -136,8 +129,6 @@ export async function sendMessageLambda(
       },
     };
     
-    console.log(`Invoking Lambda function ${CHAT_LAMBDA} directly`);
-    
     // Invoke Lambda function directly
     try {
       const lambdaResponse = await invokeLambda(CHAT_LAMBDA, payload);
@@ -173,7 +164,6 @@ export async function sendMessageLambda(
         console.error('Failed to parse Lambda response as JSON:', responseBodyText);
         // If it starts with 'd', it might be a "data:" prefix or other non-JSON content
         if (responseBodyText.startsWith('d')) {
-          console.log('Response starts with "d", possibly SSE data format');
           // Try to extract JSON if response has the format "data: {...}"
           const jsonMatch = responseBodyText.match(/data: ({.*})/);
           if (jsonMatch && jsonMatch[1]) {
