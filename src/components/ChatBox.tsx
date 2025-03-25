@@ -340,17 +340,12 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
     setIsLoadingConversations(true);
     
     try {
-      console.log('ChatBox: Fetching conversations from database');
       // Use the direct database method instead of Lambda
       const result = await getConversationsFromDB();
       
-      console.log('ChatBox: Received database response for conversations:', result);
-      
       if (result.error) {
-        console.error('ChatBox: Error from server:', result.error, 'Status:', result.status);
         if (result.status === 401 || result.status === 403) {
           // Token is invalid or expired
-          console.log('Authentication error fetching conversations, redirecting to login');
           setShowLoginModal(true);
           return;
         }
@@ -363,13 +358,10 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
       
-      console.log('ChatBox: Sorted conversations:', sortedConversations);
-      
       setConversations(sortedConversations);
       
       // Only auto-select if explicitly told to do so (for example, with initialConversationId)
       if (initialConversationId && sortedConversations.length > 0 && !preventAutoSelect) {
-        console.log('ChatBox: Auto-selecting conversation', initialConversationId);
         handleSelectConversation(sortedConversations[0].id);
       }
     } catch (error) {
@@ -394,18 +386,12 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
     setMessages([]); // Clear messages while loading
     
     try {
-      console.log('ChatBox: Loading chat history for conversation', conversationId);
-      
       // Use the direct database method instead of Lambda
       const result = await getChatHistoryFromDB(conversationId);
       
-      console.log('ChatBox: Received database response for chat history:', result);
-      
       if (result.error) {
-        console.error('ChatBox: Error from server:', result.error, 'Status:', result.status);
         if (result.status === 401 || result.status === 403) {
           // Token is invalid or expired
-          console.log('Authentication error loading chat history, redirecting to login');
           setShowLoginModal(true);
           return;
         }
@@ -416,7 +402,6 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
       // Find the conversation to set the title
       const conversation = conversations.find(c => c.id === conversationId);
       if (conversation) {
-        console.log('ChatBox: Setting conversation title to', conversation.title);
         setConversationTitle(conversation.title);
       }
       
@@ -428,14 +413,10 @@ export default function ChatBox({ onClose, initialConversationId, initialConvers
         timestamp: new Date(msg.timestamp || msg.createdAt || Date.now()),
       }));
       
-      console.log('ChatBox: Formatted messages for UI:', formattedMessages);
-      
       // Sort by timestamp if available
       const sortedMessages = formattedMessages.sort((a: any, b: any) => {
         return a.timestamp.getTime() - b.timestamp.getTime();
       });
-      
-      console.log('ChatBox: Sorted messages by timestamp:', sortedMessages);
       
       // Set conversation ID explicitly to ensure buttons are enabled
       setConversationId(conversationId);

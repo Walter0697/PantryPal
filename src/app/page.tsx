@@ -244,37 +244,26 @@ function LoginPageContent() {
           
           // Store the JWT token and set login state
           if (result.token && result.expiresIn) {
-            console.log('Login successful - token received, preparing redirection to:', returnUrl || '/home');
-            
             try {
               // Let the AuthProvider handle the token
               login(result.token, result.expiresIn);
               
               // Use a short timeout to ensure the token is set before redirecting
-              console.log('Setting up redirection with delay...');
-              
-              // IMPORTANT: Instead of relying only on router.push, use a direct navigation approach
               const targetUrl = returnUrl || '/home';
               
               // Force a clean navigation state
               setTimeout(() => {
                 try {
-                  console.log('Executing redirection to:', targetUrl);
-                  
-                  // Use window.location for a hard navigation
                   window.location.href = targetUrl;
                 } catch (navError) {
                   toast.error('Error during navigation. Please try again.');
-                  console.log('Navigation error:', navError);
                 }
               }, 200);
             } catch (loginError) {
               toast.error('Error storing authentication data. Please try again.');
-              console.log('Login token storage error:', loginError);
             }
           } else {
             toast.error('Authentication failed: Missing token information');
-            console.log('Login response missing token or expiration:', result);
           }
         } 
         // Handle password change challenge
@@ -330,18 +319,14 @@ function LoginPageContent() {
             try {
               login(result.token, result.expiresIn);
               // Redirect to the return URL or home
-              console.log(`Redirecting to ${returnUrl} after password change`);
-              
               try {
                 router.push(returnUrl || '/home');
               } catch (routerError) {
                 // If router.push fails, use window.location as fallback
-                console.log('Router navigation failed, using fallback method');
                 window.location.href = returnUrl || '/home';
               }
             } catch (loginError) {
               toast.error('Error storing authentication data. Please try again.');
-              console.log('Login token storage error:', loginError);
               // Reset to login form as fallback
               setShowPasswordChange(false);
             }
@@ -359,22 +344,19 @@ function LoginPageContent() {
                   passwordField.focus();
                 }
               } catch (focusError) {
-                console.log('Focus error:', focusError);
+                // Silently handle focus error
               }
             }, 100);
           }
         } else {
           // More detailed error message
           toast.error(`Password change failed: ${result.message}`);
-          console.log('Password change error details:', result);
         }
       } catch (passwordChangeError: any) {
         toast.error(`Password change error: ${passwordChangeError.message || 'Please try again'}`);
-        console.log('Password change error:', passwordChangeError);
       }
     } catch (error: any) {
       toast.error(`Unexpected error: ${error.message || 'Please try again'}`);
-      console.log('Password change exception:', error);
     } finally {
       setIsLoading(false);
     }
@@ -404,11 +386,9 @@ function LoginPageContent() {
         }
       } catch (apiError: any) {
         toast.error(`Password reset error: ${apiError.message || 'Please try again later'}`);
-        console.log('Forgot password API error:', apiError);
       }
     } catch (error: any) {
       toast.error(`An unexpected error occurred: ${error.message || 'Please try again'}`);
-      console.log('Forgot password general error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -456,18 +436,15 @@ function LoginPageContent() {
             setConfirmResetPassword('');
           } catch (stateError) {
             toast.error('Error updating the form. Please try logging in again.');
-            console.log('State update error:', stateError);
           }
         } else {
           toast.error(result.message);
         }
       } catch (apiError: any) {
         toast.error(`Password reset error: ${apiError.message || 'Please check your code and try again'}`);
-        console.log('Reset confirmation API error:', apiError);
       }
     } catch (error: any) {
       toast.error(`An unexpected error occurred: ${error.message || 'Please try again'}`);
-      console.log('Reset confirmation general error:', error);
     } finally {
       setIsLoading(false);
     }

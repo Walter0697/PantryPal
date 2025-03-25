@@ -224,7 +224,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Extract username from token
       try {
         const tokenData = JSON.parse(atob(newToken.split('.')[1]));
-        const username = tokenData['cognito:username'] || tokenData.username || tokenData.preferred_username;
+        
+        // Try multiple possible username fields in order of likelihood
+        const username = tokenData['cognito:username'] || 
+                        tokenData.username || 
+                        tokenData.preferred_username ||
+                        tokenData.email || // Sometimes email is used as username
+                        tokenData.sub || // Fallback to subject if no username
+                        tokenData.unique_name; // Another common field
         
         // Store username in localStorage and cookies for accessibility
         if (username) {
@@ -234,9 +241,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Save to cookies so backend can access it
           const maxAgeSeconds = Math.min(expiresIn, 60 * 60 * 24 * 7); // Same expiry as JWT
           setCookie('username', username, maxAgeSeconds);
+        } else {
+          // Try to use the login username as fallback
+          const loginUsername = localStorage.getItem('loginUsername');
+          if (loginUsername) {
+            localStorage.setItem('username', loginUsername);
+            const maxAgeSeconds = Math.min(expiresIn, 60 * 60 * 24 * 7);
+            setCookie('username', loginUsername, maxAgeSeconds);
+          }
         }
       } catch (tokenDecodeError) {
-        // Silent catch - no username in cookies is acceptable
+        // Try to use the login username as fallback
+        const loginUsername = localStorage.getItem('loginUsername');
+        if (loginUsername) {
+          localStorage.setItem('username', loginUsername);
+          const maxAgeSeconds = Math.min(expiresIn, 60 * 60 * 24 * 7);
+          setCookie('username', loginUsername, maxAgeSeconds);
+        }
       }
       
       // Store token in localStorage with error handling

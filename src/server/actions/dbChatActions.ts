@@ -30,7 +30,6 @@ export async function getConversationsFromDB(): Promise<{ error?: string; conver
     
     // Check if user is authenticated
     if (!authToken) {
-      console.log('No authentication token found in cookies');
       return {
         error: 'Authentication required. Please log in to view conversations.',
         status: 401
@@ -41,14 +40,11 @@ export async function getConversationsFromDB(): Promise<{ error?: string; conver
     const username = cookies().get('username')?.value;
     
     if (!username) {
-      console.log('No username found in cookies');
       return {
         error: 'Username not found in session. Please log in again.',
         status: 400
       };
     }
-    
-    console.log(`Fetching conversations from database for user: ${username}`);
     
     // Get conversations from database using dynamodb utility
     const items = await scanItems<Conversation>(
@@ -57,16 +53,12 @@ export async function getConversationsFromDB(): Promise<{ error?: string; conver
       { ':username': username }
     );
     
-    console.log(`Raw DynamoDB response (${items.length} items):`, JSON.stringify(items, null, 2));
-    
     // Sort by createdAt or updatedAt (newest first)
     const sortedItems = [...items].sort((a, b) => {
       const dateA = new Date(a.updatedAt || a.createdAt).getTime();
       const dateB = new Date(b.updatedAt || b.createdAt).getTime();
       return dateB - dateA;
     });
-    
-    console.log(`Found ${sortedItems.length} conversations for user ${username}`);
     
     // Format the conversations
     const formattedConversations = sortedItems.map(item => ({
@@ -76,8 +68,6 @@ export async function getConversationsFromDB(): Promise<{ error?: string; conver
       updatedAt: item.updatedAt || item.createdAt,
       messageCount: Array.isArray(item.messages) ? item.messages.length : 0
     }));
-    
-    console.log('Formatted conversations:', JSON.stringify(formattedConversations, null, 2));
     
     return { conversations: formattedConversations };
   } catch (error) {
@@ -105,8 +95,6 @@ export async function getConversationFromDB(conversationId: string): Promise<any
       };
     }
     
-    console.log(`Fetching conversation ${conversationId} from database`);
-    
     // Get conversation from database using dynamodb utility
     const conversation = await getItem<Conversation>(CHAT_TABLE, { id: conversationId });
     
@@ -116,8 +104,6 @@ export async function getConversationFromDB(conversationId: string): Promise<any
         status: 404
       };
     }
-    
-    console.log('Raw conversation data:', JSON.stringify(conversation, null, 2));
     
     return conversation;
   } catch (error) {
@@ -139,14 +125,11 @@ export async function getChatHistoryFromDB(conversationId: string): Promise<{ er
     
     // Check if user is authenticated
     if (!authToken) {
-      console.log('No authentication token found in cookies');
       return {
         error: 'Authentication required. Please log in to view chat history.',
         status: 401
       };
     }
-    
-    console.log(`Fetching chat history for conversation ${conversationId} from database`);
     
     // Get conversation from database using dynamodb utility
     const conversation = await getItem<Conversation>(CHAT_TABLE, { id: conversationId });
@@ -159,11 +142,8 @@ export async function getChatHistoryFromDB(conversationId: string): Promise<{ er
     }
     
     if (!Array.isArray(conversation.messages)) {
-      console.log(`No messages found for conversation ${conversationId}`);
       return { messages: [] };
     }
-    
-    console.log(`Raw messages for conversation ${conversationId}:`, JSON.stringify(conversation.messages, null, 2));
     
     // Format the messages for the UI
     const formattedMessages = conversation.messages.map((msg: any, index: number) => ({
@@ -172,10 +152,6 @@ export async function getChatHistoryFromDB(conversationId: string): Promise<{ er
       role: msg.role || (msg.isUser ? 'user' : 'assistant'),
       timestamp: msg.timestamp || msg.createdAt || conversation.createdAt
     }));
-    
-    console.log(`Server action: Received ${formattedMessages.length} messages for conversation ${conversationId}`);
-    console.log('First message sample:', formattedMessages.length > 0 ? JSON.stringify(formattedMessages[0], null, 2) : 'No messages');
-    console.log('Last message sample:', formattedMessages.length > 0 ? JSON.stringify(formattedMessages[formattedMessages.length-1], null, 2) : 'No messages');
     
     return { messages: formattedMessages };
   } catch (error) {
