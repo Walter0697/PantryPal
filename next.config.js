@@ -43,6 +43,13 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV !== 'development',
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '5mb',
+      // Increase the timeout from default 5 seconds to 60 seconds
+      serverActionsTimeout: 60 * 1000, // 60 seconds in milliseconds
+    },
+  },
   async headers() {
     return [
       {

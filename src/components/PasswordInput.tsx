@@ -18,6 +18,7 @@ interface PasswordInputProps {
   iconClassName?: string;
   toggleClassName?: string;
   showLeftIcon?: boolean;
+  disabled?: boolean;
 }
 
 const PasswordInput: React.FC<PasswordInputProps> = ({
@@ -35,6 +36,7 @@ const PasswordInput: React.FC<PasswordInputProps> = ({
   iconClassName = 'text-gray-400',
   toggleClassName = 'absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-gray-400 hover:text-gray-600',
   showLeftIcon = true,
+  disabled = false,
 }) => {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -79,6 +81,7 @@ const PasswordInput: React.FC<PasswordInputProps> = ({
           required={required}
           autoComplete={autoComplete}
           className={finalInputClass}
+          disabled={disabled}
         />
         <div 
           className={toggleClassName}
