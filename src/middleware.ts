@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { NextRequest } from 'next/server';
 import { jwtDecode } from 'jwt-decode';
 
 // List of public paths that don't require authentication
